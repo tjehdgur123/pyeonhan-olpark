@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>편한길 올팍</title>
+<meta name="description" content="휠체어·유아차·보행약자를 위한 올림픽공원 공연 관람 길잡이">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* VOICE: 공공 안내판처럼 차분하고 또렷하게. 꾸밈보다 읽힘.
+   IDEA: 지하철 교통약자 안내 표지 — 파란 바탕, 노란 접근성 표시, 큰 출구 번호.
+   PICTURE: 올림픽공원 실측 윤곽 위에 '엘리베이터 출구 → 공연장' 경로를 그린 지도.
+   COLOUR and TYPE: 안내판 파랑 #0b4fa3, 접근성 노랑 #ffc20e, 흰 바탕 / IBM Plex Sans KR.
+   LAYOUT: 모바일 한 줄 흐름(선택 → 요약 → 지도 → 카드), 넓은 화면은 지도 옆 카드. */
+:root{color-scheme:light dark;--bg:light-dark(#ffffff,#0d1520);--ink:light-dark(#111820,#eef2f7);--mute:light-dark(#4a5563,#a9b4c2);
+--blue:light-dark(#0b4fa3,#5ea1ff);--blueBg:#0b4fa3;--yel:#ffc20e;--line:light-dark(#d6dde6,#2a3646);--card:light-dark(#f4f7fb,#152132);
+--park:light-dark(#e3efdc,#1b2c22);--water:light-dark(#bfdcf2,#1d3a55);--road:light-dark(#c9cfd6,#3a4656);--warn:light-dark(#8a4b00,#ffcf70);--warnBg:light-dark(#fff4d6,#3a2c0a)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 "IBM Plex Sans KR",system-ui,sans-serif;overflow-x:clip}
+body.big{font-size:20px}
+a{color:var(--blue)}
+.top{background:var(--blueBg);color:#fff;padding:20px max(5vw,16px) 22px}
+.top .row{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;max-width:1240px;margin:auto}
+.top h1{margin:0;font-size:clamp(30px,5vw,44px);line-height:1.05;font-weight:700;display:flex;gap:12px;align-items:center}
+.sym{flex:none;width:1.05em;height:1.05em;border-radius:8px;background:var(--yel);display:grid;place-items:center}
+.top p{margin:8px 0 0;max-width:40em;color:#dbe8ff}
+.btn{flex:none;white-space:nowrap;font:inherit;font-size:15px;min-height:44px;padding:8px 14px;border-radius:10px;border:2px solid currentColor;background:transparent;color:inherit;cursor:pointer}
+.btn:focus-visible,.chip:focus-visible,.show:focus-visible,select:focus-visible{outline:3px solid var(--yel);outline-offset:2px}
+main{max-width:1240px;margin:auto;padding:0 max(5vw,16px) 48px}
+h2{font-size:24px;line-height:1.2;margin:32px 0 12px}
+h3{font-size:19px;margin:0 0 8px}
+.q{margin:24px 0 8px;font-weight:700}
+.shows{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.show{font:inherit;text-align:left;border:2px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);padding:12px 14px;cursor:pointer;min-height:44px}
+.show[aria-pressed=true]{border-color:var(--blue);box-shadow:inset 0 0 0 2px var(--blue)}
+.show.more{display:none}.open .show.more{display:block}#moreBtn{justify-self:start}
+.show b{display:block;font-size:15px;line-height:1.35}
+.show span{font-size:14px;color:var(--mute);white-space:nowrap}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font:inherit;font-size:16px;min-height:48px;padding:8px 18px;border-radius:999px;border:2px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+.chip[aria-pressed=true]{background:var(--blueBg);border-color:var(--blueBg);color:#fff}
+select{font:inherit;font-size:16px;min-height:48px;padding:6px 12px;border-radius:10px;border:2px solid var(--line);background:var(--bg);color:var(--ink);max-width:100%}
+.sum{margin-top:28px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:2px solid var(--blue);border-radius:16px;overflow:hidden}
+.sum div{padding:12px 14px;border-left:1px solid var(--line)}.sum div:first-child{border-left:0}
+.sum small{display:block;color:var(--mute);font-size:13px}
+.sum strong{font-size:clamp(22px,3vw,30px);white-space:nowrap;line-height:1.2}
+.grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:20px;margin-top:20px;align-items:start}
+.mapbox{position:sticky;top:12px;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--card)}
+.mapbox svg{display:block;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;padding:10px 14px;font-size:14px;border-top:1px solid var(--line)}
+.legend label{display:flex;gap:6px;align-items:center;min-height:32px;cursor:pointer}
+.legend input{width:20px;height:20px}
+.card{border:1px solid var(--line);border-radius:16px;padding:16px 18px;margin-bottom:14px;background:var(--bg)}
+.card ul{margin:6px 0 0;padding-left:1.2em}.card li{margin:4px 0}
+.exit{display:inline-grid;place-items:center;min-width:2em;height:2em;padding:0 .3em;border-radius:6px;background:var(--yel);color:#111;font-weight:700;margin-right:6px}
+.line{display:inline-block;font-size:13px;font-weight:700;color:#fff;border-radius:999px;padding:1px 9px;margin-right:6px;vertical-align:2px}
+.warn{background:var(--warnBg);color:var(--warn);border-radius:10px;padding:10px 12px;margin:10px 0;font-weight:500}
+.st{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}.st:first-of-type{border-top:0;margin-top:4px;padding-top:4px}
+.meta{color:var(--mute);font-size:14px}
+.bars{display:grid;grid-template-columns:3.4em minmax(0,1fr) 2.6em;gap:3px 8px;font-size:13px;align-items:center;margin-top:10px}
+.bars .b{height:12px;border-radius:3px;background:var(--blue)}.bars .w{height:6px;border-radius:3px;background:var(--road);margin-top:2px}
+.bars .hot{background:#d9480f}
+.n{text-align:right;font-variant-numeric:tabular-nums}
+.live{display:flex;gap:14px;align-items:baseline;flex-wrap:wrap}
+.live strong{font-size:30px;font-variant-numeric:tabular-nums}
+.meter{height:12px;border-radius:999px;background:var(--line);overflow:hidden;margin:8px 0}.meter i{display:block;height:100%;background:var(--blue)}
+details{margin-top:24px;border-top:1px solid var(--line);padding-top:12px}summary{cursor:pointer;font-weight:700;min-height:44px;display:flex;align-items:center}
+footer{max-width:1240px;margin:auto;padding:16px max(5vw,16px) 40px;color:var(--mute);font-size:14px;border-top:1px solid var(--line)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+@media(max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}.mapbox{position:static}}
+@media(max-width:600px){.sum{grid-template-columns:repeat(2,minmax(0,1fr))}.sum div:nth-child(3){border-left:0}.sum div:nth-child(n+3){border-top:1px solid var(--line)}}
+@media(prefers-reduced-motion:no-preference){.route{stroke-dasharray:6 8;animation:walk 1.4s linear infinite}@keyframes walk{to{stroke-dashoffset:-28}}}
+</style>
+</head>
+<body>
+<header class="top"><div class="row">
+ <div><h1><span class="sym" aria-hidden="true"><svg viewBox="0 0 24 24" width="70%" height="70%"><circle cx="12" cy="4.2" r="2.2" fill="#0b4fa3"/><path d="M11 7.5v6h5l2.5 5" stroke="#0b4fa3" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.6 10.2a6 6 0 1 0 7.9 8.2" stroke="#0b4fa3" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg></span>편한길 올팍</h1>
+ <p>휠체어·유아차로, 또는 오래 걷기 힘든 몸으로 올림픽공원 공연을 보러 갈 때 필요한 정보만 모았어요. 엘리베이터가 있는 출구, 가까운 주차장, 휠체어 대여, 공연 뒤 혼잡 시간까지 한 화면에서 확인하세요.</p></div>
+ <button class="btn" id="bigBtn" aria-pressed="false">글자 크게</button>
+</div></header>
+<main>
+ <p class="q" id="qShow">1. 어떤 공연에 가세요?</p>
+ <div class="shows" id="shows" role="group" aria-labelledby="qShow"></div>
+ <p class="meta" id="evSrc" style="margin:8px 0 0"></p>
+ <p class="meta" style="margin-top:4px">공연 목록에 없으면 공연장을 직접 고르세요: <select id="venueSel" aria-label="공연장 선택"></select></p>
+ <p class="q" id="qMode">2. 어떻게 이동하세요?</p>
+ <div class="chips" id="modes" role="group" aria-labelledby="qMode"></div>
+ <p class="q" id="qWay">3. 무엇을 타고 오세요?</p>
+ <div class="chips" id="ways" role="group" aria-labelledby="qWay"></div>
+
+ <section class="sum" id="sum" aria-live="polite"></section>
+ <div class="grid">
+  <div class="mapbox">
+   <svg id="map" viewBox="0 0 1000 640" role="img" aria-labelledby="mapTitle"><title id="mapTitle">올림픽공원 지도: 추천 출구와 공연장 경로</title></svg>
+   <div class="legend" id="legend"></div>
+  </div>
+  <div id="cards"></div>
+ </div>
+
+ <details><summary>데이터 출처와 한계</summary><div id="sources"></div></details>
+</main>
+<footer>편한길 올팍 · 2026년도 한국체육산업개발(주) 공공데이터 활용 경진대회 응모작 · 지도 윤곽 © OpenStreetMap contributors (ODbL) · 걷는 시간은 직선거리 기반 추정이며 실제 경사·턱은 현장에서 다를 수 있어요.</footer>
+<script src="data.js"></script>
+<script src="config.js"></script>
+<script src="events.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

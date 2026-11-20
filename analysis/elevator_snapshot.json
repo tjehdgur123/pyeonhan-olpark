@@ -1,0 +1,10 @@
+{"source":"서울교통공사_교통약자이용정보 API getWksnElvtr (data.go.kr 15143843), 2026-11-20 12:10 조회. 전체 871대: M 858, S 8, 값 없음 5","at":"2026-11-20 12:10",
+"items":[
+{"line":"5호선","station":"올림픽공원","no":"1","exit":"내부","loc":"둔촌동 방면 3-2","floors":"B2-B3","status":"M"},
+{"line":"5호선","station":"올림픽공원","no":"2","exit":"내부","loc":"방이 방면 6-3","floors":"B2-B3","status":"M"},
+{"line":"5호선","station":"올림픽공원","no":"4","exit":"2","loc":"2번 출입구","floors":"B2-1F","status":"M"},
+{"line":"8호선","station":"몽촌토성","no":"1","exit":"내부","loc":"강동구청 방면 3-4","floors":"B3-B2","status":"S"},
+{"line":"8호선","station":"몽촌토성","no":"2","exit":"내부","loc":"잠실 방면 3-4","floors":"B3-B2","status":"M"},
+{"line":"8호선","station":"몽촌토성","no":"3","exit":"내부","loc":"대합실","floors":"B2-B1","status":"M"},
+{"line":"8호선","station":"몽촌토성","no":"4","exit":"4","loc":"대합실(B1, 4번 출입구 화장실 앞)","floors":"B1-1F","status":"M"}],
+"note":"9호선(2·3단계) 올림픽공원·한성백제역은 이 API 응답에 없음"}

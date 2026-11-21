@@ -164,7 +164,7 @@ async function live() {
       : `주변 5·8호선 엘리베이터 모두 운행 중 (${esc(at)})`}</div><p class="meta">9호선 올림픽공원·한성백제역은 실시간 가동 정보가 공개되지 않아요.</p>`;
   };
   drawEv(D.elev.items, D.elev.at + ' 기준');
-  if (C.LIVE_API) try { const j = await fetch(C.LIVE_API + '/elevators').then(r => r.json()); drawEv(j.items, (j.at || '') + ' 실시간'); } catch(e) {}
+  if (C.LIVE_API) try { const j = await fetch(C.LIVE_API + '/elevators').then(r => r.json()); if (j.items && j.items.length) drawEv(j.items, (j.at || '') + ' 실시간'); } catch(e) {}
 }
 
 // ---------- 컨트롤 ----------

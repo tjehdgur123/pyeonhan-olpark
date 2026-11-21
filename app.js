@@ -86,12 +86,12 @@ function timesFor() {
 
 // ---------- 가는 길 ----------
 function stepHTML(dot, title, body, y) { return `<li class="step"><span class="dot ${y ? 'y' : ''}" aria-hidden="true">${dot}</span><div><h3>${title}</h3>${body}</div></li>`; }
-function elevNote(stationName) {
+function elevNote(S) {
   if (!live.elev) return `<p class="meta">엘리베이터 실시간 정보를 불러오는 중…</p>`;
   if (live.elev === 'fail') return `<div class="note info">${I.info}<span>엘리베이터 실시간 정보를 지금 불러오지 못했어요. 출발 전 역에 전화로 확인하세요.</span></div>`;
-  const key = stationName.replace('역', '');
-  const mine = live.elev.items.filter(x => x.station === key);
-  if (!mine.length) return `<p class="meta">이 역(9호선)은 엘리베이터 실시간 정보가 공개되지 않아요.</p>`;
+  const key = S.name.replace('역', '');
+  const mine = live.elev.items.filter(x => x.station === key && x.line === S.line);
+  if (!mine.length) return `<p class="meta">${esc(S.line)} ${esc(S.name)}은 엘리베이터 실시간 가동 정보가 공개되지 않아요. 출발 전 역에 전화로 확인하세요.</p>`;
   const stop = mine.filter(x => x.status === 'S');
   return stop.length
     ? `<div class="note warn">${I.warn}<span><b>지금 멈춘 엘리베이터</b> · ${stop.map(x => `${esc(x.loc)}(${esc(x.floors)})`).join(', ')}<br>반대 방면 승강장 엘리베이터를 이용하거나 역에 도움을 요청하세요. <span class="meta">${esc(live.elev.at)} 기준</span></span></div>`
@@ -102,7 +102,7 @@ function renderRoute() {
   let h = '<ol class="steps">';
   if (st.way === 'subway') {
     const ex = exitsFor(v), best = ex[0], S = best.s;
-    h += stepHTML('1', '출발 전 확인', elevNote(S.name) + `<dl class="facts"><dt>${I.phone} 역 전화</dt><dd><a href="tel:${S.tel.replace(/-/g,'')}">${S.tel}</a> (${esc(S.name)} ${esc(S.line)})</dd>${S.ramp != null ? `<dt>안전발판</dt><dd>${S.ramp ? '있음 · 승강장 틈이 걱정되면 역에 요청' : '보유 정보 없음'}</dd>` : ''}</dl>`);
+    h += stepHTML('1', '출발 전 확인', elevNote(S) + `<dl class="facts"><dt>${I.phone} 역 전화</dt><dd><a href="tel:${S.tel.replace(/-/g,'')}">${S.tel}</a> (${esc(S.name)} ${esc(S.line)})</dd>${S.ramp != null ? `<dt>안전발판</dt><dd>${S.ramp ? '있음 · 승강장 틈이 걱정되면 역에 요청' : '보유 정보 없음'}</dd>` : ''}</dl>`);
     h += stepHTML('2', `<span class="pill" style="background:${S.color}">${S.line}</span> ${esc(S.name)}에서 내리기`, `<p>엘리베이터와 가까운 칸: <b>${esc(S.board)}</b></p>`);
     h += stepHTML('3', `<span class="exit">${best.e.no}</span>번 출구 엘리베이터로 지상까지`, `<p class="meta">${esc(S.ground)}</p>${S.warn ? `<div class="note warn">${I.warn}<span>${esc(S.warn)}</span></div>` : ''}`, true);
     h += stepHTML('4', `${esc(v.name)}까지 약 ${mins(best.p.m)}분`, `<p>${best.p.real ? `계단을 피한 길로 약 <b>${Math.round(best.p.m)}m</b> (${m.label} 기준)` : `약 ${Math.round(best.p.m)}m 추정 (직선거리 기반, ${m.label} 기준)`}</p>${best.p.steps ? `<div class="note warn">${I.warn}<span>계단 없는 길을 찾지 못해 일부 구간에 계단이 있을 수 있어요.</span></div>` : ''}`);
@@ -127,7 +127,7 @@ function renderRoute() {
   if (st.way === 'subway') {
     const seen = new Set([exitsFor(v)[0].s.id]);
     const alts = exitsFor(v).filter(x => !seen.has(x.s.id) && seen.add(x.s.id)).slice(0, 3);
-    h += `<details class="alt"><summary>다른 역으로 가기 (${alts.length})</summary>${alts.map(x => `<div class="altrow"><p style="margin:0"><span class="pill" style="background:${x.s.color}">${x.s.line}</span> <b>${esc(x.s.name)}</b> <span class="exit">${x.e.no}</span>번 출구 → 약 ${mins(x.p.m)}분</p>${x.s.warn ? `<p class="meta">${esc(x.s.warn)}</p>` : ''}${elevNote(x.s.name)}</div>`).join('')}</details>`;
+    h += `<details class="alt"><summary>다른 역으로 가기 (${alts.length})</summary>${alts.map(x => `<div class="altrow"><p style="margin:0"><span class="pill" style="background:${x.s.color}">${x.s.line}</span> <b>${esc(x.s.name)}</b> <span class="exit">${x.e.no}</span>번 출구 → 약 ${mins(x.p.m)}분</p>${x.s.warn ? `<p class="meta">${esc(x.s.warn)}</p>` : ''}${elevNote(x.s)}</div>`).join('')}</details>`;
   }
   $('#pane-route').innerHTML = h;
 }

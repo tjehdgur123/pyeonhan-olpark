@@ -2,109 +2,220 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b4fa3">
 <title>편한길 올팍</title>
 <meta name="description" content="휠체어·유아차·보행약자를 위한 올림픽공원 공연 관람 길잡이">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
-/* VOICE: 공공 안내판처럼 차분하고 또렷하게. 꾸밈보다 읽힘.
-   IDEA: 지하철 교통약자 안내 표지 — 파란 바탕, 노란 접근성 표시, 큰 출구 번호.
-   PICTURE: 올림픽공원 실측 윤곽 위에 '엘리베이터 출구 → 공연장' 경로를 그린 지도.
+/* VOICE: 공공 길안내 앱. 차분하고 또렷하게, 꾸밈보다 읽힘.
+   IDEA: 지하철 교통약자 안내 표지 + 길찾기 앱의 단계별 경로.
+   PICTURE: 실측 공원 지도 위 계단 없는 경로, 노란 엘리베이터 출구 번호.
    COLOUR and TYPE: 안내판 파랑 #0b4fa3, 접근성 노랑 #ffc20e, 흰 바탕 / IBM Plex Sans KR.
-   LAYOUT: 모바일 한 줄 흐름(선택 → 요약 → 지도 → 카드), 넓은 화면은 지도 옆 카드. */
-:root{color-scheme:light dark;--bg:light-dark(#ffffff,#0d1520);--ink:light-dark(#111820,#eef2f7);--mute:light-dark(#4a5563,#a9b4c2);
---blue:light-dark(#0b4fa3,#5ea1ff);--blueBg:#0b4fa3;--yel:#ffc20e;--line:light-dark(#d6dde6,#2a3646);--card:light-dark(#f4f7fb,#152132);
---park:light-dark(#e3efdc,#1b2c22);--water:light-dark(#bfdcf2,#1d3a55);--road:light-dark(#c9cfd6,#3a4656);--warn:light-dark(#8a4b00,#ffcf70);--warnBg:light-dark(#fff4d6,#3a2c0a)}
+   LAYOUT: 모바일은 여정 카드 → 탭(가는 길·지도·공연 후) + 하단 탭바, 넓은 화면은 왼쪽 안내·오른쪽 지도. */
+:root{color-scheme:light dark;
+--bg:light-dark(#f3f5f8,#0b121b);--surface:light-dark(#ffffff,#131d2a);--ink:light-dark(#101820,#eef2f7);--mute:light-dark(#5a6573,#a5b0be);
+--line:light-dark(#e1e6ed,#243142);--blue:light-dark(#0b4fa3,#6aa8ff);--blueBg:#0b4fa3;--blueSoft:light-dark(#e8f0fb,#16273f);--yel:#ffc20e;
+--ok:light-dark(#1f7a3a,#5fd38a);--okBg:light-dark(#e7f5ec,#12291b);--warn:light-dark(#8a4b00,#ffcf70);--warnBg:light-dark(#fff4d6,#33270a);
+--park:light-dark(#e2eed9,#18291f);--water:light-dark(#bcdaf0,#1c3752);--road:light-dark(#d3d8de,#33404f);--path:light-dark(#c2ccb5,#2c4030);
+--r:16px;--shadow:0 1px 2px rgb(16 24 32/.06),0 4px 14px rgb(16 24 32/.06)}
 :root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
 *{box-sizing:border-box;min-width:0}
-body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 "IBM Plex Sans KR",system-ui,sans-serif;overflow-x:clip}
-body.big{font-size:20px}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "IBM Plex Sans KR",system-ui,sans-serif;overflow-x:clip}
+body.big{font-size:19px}
 a{color:var(--blue)}
-.top{background:var(--blueBg);color:#fff;padding:20px max(5vw,16px) 22px}
-.top .row{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;max-width:1240px;margin:auto}
-.top h1{margin:0;font-size:clamp(30px,5vw,44px);line-height:1.05;font-weight:700;display:flex;gap:12px;align-items:center}
-.sym{flex:none;width:1.05em;height:1.05em;border-radius:8px;background:var(--yel);display:grid;place-items:center}
-.top p{margin:8px 0 0;max-width:40em;color:#dbe8ff}
-.btn{flex:none;white-space:nowrap;font:inherit;font-size:15px;min-height:44px;padding:8px 14px;border-radius:10px;border:2px solid currentColor;background:transparent;color:inherit;cursor:pointer}
-.btn:focus-visible,.chip:focus-visible,.show:focus-visible,select:focus-visible{outline:3px solid var(--yel);outline-offset:2px}
-main{max-width:1240px;margin:auto;padding:0 max(5vw,16px) 48px}
-h2{font-size:24px;line-height:1.2;margin:32px 0 12px}
-h3{font-size:19px;margin:0 0 8px}
-.q{margin:24px 0 8px;font-weight:700}
-.shows{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
-.show{font:inherit;text-align:left;border:2px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);padding:12px 14px;cursor:pointer;min-height:44px}
-.show[aria-pressed=true]{border-color:var(--blue);box-shadow:inset 0 0 0 2px var(--blue)}
-.show.more{display:none}.open .show.more{display:block}#moreBtn{justify-self:start}
-.show b{display:block;font-size:15px;line-height:1.35}
-.show span{font-size:14px;color:var(--mute);white-space:nowrap}
-.chips{display:flex;flex-wrap:wrap;gap:8px}
-.chip{font:inherit;font-size:16px;min-height:48px;padding:8px 18px;border-radius:999px;border:2px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
-.chip[aria-pressed=true]{background:var(--blueBg);border-color:var(--blueBg);color:#fff}
-select{font:inherit;font-size:16px;min-height:48px;padding:6px 12px;border-radius:10px;border:2px solid var(--line);background:var(--bg);color:var(--ink);max-width:100%}
-.sum{margin-top:28px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:2px solid var(--blue);border-radius:16px;overflow:hidden}
-.sum div{padding:12px 14px;border-left:1px solid var(--line)}.sum div:first-child{border-left:0}
-.sum small{display:block;color:var(--mute);font-size:13px}
-.sum strong{font-size:clamp(22px,3vw,30px);white-space:nowrap;line-height:1.2}
-.grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:20px;margin-top:20px;align-items:start}
-.mapbox{position:sticky;top:12px;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--card)}
-.mapbox svg{display:block;width:100%;height:auto}
-.legend{display:flex;flex-wrap:wrap;gap:6px 14px;padding:10px 14px;font-size:14px;border-top:1px solid var(--line)}
-.legend label{display:flex;gap:6px;align-items:center;min-height:32px;cursor:pointer}
-.legend input{width:20px;height:20px}
-.card{border:1px solid var(--line);border-radius:16px;padding:16px 18px;margin-bottom:14px;background:var(--bg)}
-.card ul{margin:6px 0 0;padding-left:1.2em}.card li{margin:4px 0}
-.exit{display:inline-grid;place-items:center;min-width:2em;height:2em;padding:0 .3em;border-radius:6px;background:var(--yel);color:#111;font-weight:700;margin-right:6px}
-.line{display:inline-block;font-size:13px;font-weight:700;color:#fff;border-radius:999px;padding:1px 9px;margin-right:6px;vertical-align:2px}
-.warn{background:var(--warnBg);color:var(--warn);border-radius:10px;padding:10px 12px;margin:10px 0;font-weight:500}
-.st{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}.st:first-of-type{border-top:0;margin-top:4px;padding-top:4px}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--yel);outline-offset:2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+svg.i{width:1.2em;height:1.2em;flex:none;vertical-align:-.22em}
+
+/* 상단 바 */
+.bar{position:sticky;top:0;z-index:20;background:var(--blueBg);color:#fff;padding:max(10px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) 10px max(16px,env(safe-area-inset-left))}
+.bar .in{max-width:1240px;margin:auto;display:flex;align-items:center;gap:10px}
+.logo{width:34px;height:34px;border-radius:9px;background:var(--yel);display:grid;place-items:center;flex:none}
+.bar h1{margin:0;font-size:20px;line-height:1.1}
+.bar small{display:block;font-size:12px;color:#cfe0ff;font-weight:400}
+.bar .sp{flex:1}
+.ghost{min-height:40px;padding:6px 12px;border-radius:10px;border:1.5px solid rgb(255 255 255/.6);background:transparent;color:#fff;cursor:pointer;white-space:nowrap;font-size:14px}
+
+.shell{max-width:1240px;margin:auto;padding:16px max(16px,env(safe-area-inset-left)) 110px}
+.cols{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+.card{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);padding:16px}
+
+/* 여정 카드 */
+.trip .kicker{display:flex;align-items:center;gap:6px;color:var(--mute);font-size:13px}
+.trip h2{margin:4px 0 2px;font-size:clamp(20px,3.2vw,26px);line-height:1.25;text-wrap:balance}
+.trip .where{color:var(--mute);font-size:15px}
+.seg{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.seg button{min-height:44px;padding:6px 14px;border-radius:999px;border:1.5px solid var(--line);background:var(--surface);cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:15px}
+.seg button[aria-pressed=true]{background:var(--blueBg);border-color:var(--blueBg);color:#fff}
+.seg .div{width:1px;background:var(--line);margin:4px 4px}
+.change{margin-top:12px;width:100%;min-height:46px;border-radius:12px;border:0;background:var(--blueSoft);color:var(--blue);font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+
+/* 시간 요약 */
+.times{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;padding:0;overflow:hidden}
+.times div{padding:12px 12px 14px;border-left:1px solid var(--line);position:relative}
+.times div:first-child{border-left:0}
+.times small{display:block;font-size:12px;color:var(--mute);line-height:1.3}
+.times b{display:block;font-size:clamp(18px,2.1vw,24px);line-height:1.2;white-space:nowrap;font-variant-numeric:tabular-nums}
+.times .hi{background:var(--blueSoft)}.times .hi b{color:var(--blue)}
+.times .note{grid-column:1/-1;border-left:0;border-top:1px solid var(--line);font-size:13px;color:var(--mute);padding:8px 12px}
+
+/* 탭 */
+.tabs{display:flex;gap:4px;background:var(--surface);border-radius:14px;padding:4px;box-shadow:var(--shadow);position:sticky;top:62px;z-index:10}
+.tabs button{flex:1;min-height:44px;border:0;border-radius:10px;background:transparent;cursor:pointer;font-weight:500;color:var(--mute);display:flex;align-items:center;justify-content:center;gap:6px}
+.tabs button[aria-selected=true]{background:var(--blueBg);color:#fff}
+.pane[hidden]{display:none}
+
+/* 단계 타임라인 */
+.steps{list-style:none;margin:0;padding:0}
+.step{display:grid;grid-template-columns:40px minmax(0,1fr);gap:0 12px;position:relative;padding-bottom:18px}
+.step:last-child{padding-bottom:0}
+.step::before{content:"";position:absolute;left:19px;top:40px;bottom:0;width:2px;background:var(--line)}
+.step:last-child::before{display:none}
+.dot{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--blueSoft);color:var(--blue);font-weight:700}
+.dot.y{background:var(--yel);color:#111}
+.step h3{margin:8px 0 4px;font-size:17px;line-height:1.3}
+.step p{margin:4px 0}
 .meta{color:var(--mute);font-size:14px}
-.bars{display:grid;grid-template-columns:3.4em minmax(0,1fr) 2.6em;gap:3px 8px;font-size:13px;align-items:center;margin-top:10px}
-.bars .b{height:12px;border-radius:3px;background:var(--blue)}.bars .w{height:6px;border-radius:3px;background:var(--road);margin-top:2px}
-.bars .hot{background:#d9480f}
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:13px;font-weight:700;border-radius:999px;padding:2px 10px;color:#fff;vertical-align:1px}
+.exit{display:inline-grid;place-items:center;min-width:1.9em;height:1.9em;padding:0 .3em;border-radius:6px;background:var(--yel);color:#111;font-weight:700}
+.note{border-radius:12px;padding:10px 12px;margin:8px 0;font-size:15px;display:flex;gap:8px;align-items:flex-start}
+.note.warn{background:var(--warnBg);color:var(--warn)}
+.note.ok{background:var(--okBg);color:var(--ok)}
+.note.info{background:var(--blueSoft);color:var(--ink)}
+.facts{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 10px;margin:8px 0 0;font-size:15px}
+.facts dt{color:var(--mute)}.facts dd{margin:0}
+details.alt{margin-top:14px;border-top:1px solid var(--line);padding-top:6px}
+details.alt summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-weight:700;color:var(--blue)}
+.altrow{padding:10px 0;border-top:1px solid var(--line)}
+
+/* 지도 */
+.mapcard{padding:0;overflow:hidden;position:relative}
+.mapwrap{position:relative;touch-action:none;background:var(--bg);cursor:grab;height:min(64vh,560px)}
+.mapwrap.drag{cursor:grabbing}
+.mapwrap svg{display:block;width:100%;height:100%}
+.zoom{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px}
+.zoom button{width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow);cursor:pointer;font-size:20px;display:grid;place-items:center}
+.layers{display:flex;flex-wrap:wrap;gap:6px;padding:10px 12px;border-top:1px solid var(--line)}
+.layers button{min-height:36px;padding:4px 12px;border-radius:999px;border:1.5px solid var(--line);background:var(--surface);cursor:pointer;font-size:14px;display:inline-flex;gap:6px;align-items:center}
+.layers button[aria-pressed=true]{border-color:var(--blue);color:var(--blue);background:var(--blueSoft)}
+.mapnote{padding:0 12px 12px;font-size:13px;color:var(--mute)}
+.route{fill:none;stroke:var(--blue);stroke-width:7;stroke-linecap:round;stroke-linejoin:round}
+@media(prefers-reduced-motion:no-preference){.route.anim{stroke-dasharray:2 14;animation:walk 1.2s linear infinite}@keyframes walk{to{stroke-dashoffset:-32}}}
+
+/* 차트 */
+.big{font-size:clamp(28px,5vw,40px);font-weight:700;line-height:1.1;color:var(--blue);font-variant-numeric:tabular-nums}
+.bars{display:grid;grid-template-columns:4.2em minmax(0,1fr) 2.4em;gap:4px 8px;font-size:13px;align-items:center;margin-top:12px}
+.bars .t{font-variant-numeric:tabular-nums;white-space:nowrap}
+.bars .t.end{font-weight:700;color:var(--blue)}
+.bars .track{position:relative;height:16px}
+.bars .b{position:absolute;inset:0 auto 0 0;border-radius:4px;background:var(--blue)}
+.bars .b.hot{background:#d9480f}
+.bars .w{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--ink);opacity:.55}
 .n{text-align:right;font-variant-numeric:tabular-nums}
-.live{display:flex;gap:14px;align-items:baseline;flex-wrap:wrap}
-.live strong{font-size:30px;font-variant-numeric:tabular-nums}
-.meter{height:12px;border-radius:999px;background:var(--line);overflow:hidden;margin:8px 0}.meter i{display:block;height:100%;background:var(--blue)}
-details{margin-top:24px;border-top:1px solid var(--line);padding-top:12px}summary{cursor:pointer;font-weight:700;min-height:44px;display:flex;align-items:center}
-footer{max-width:1240px;margin:auto;padding:16px max(5vw,16px) 40px;color:var(--mute);font-size:14px;border-top:1px solid var(--line)}
-.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
-@media(max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}.mapbox{position:static}}
-@media(max-width:600px){.sum{grid-template-columns:repeat(2,minmax(0,1fr))}.sum div:nth-child(3){border-left:0}.sum div:nth-child(n+3){border-top:1px solid var(--line)}}
-@media(prefers-reduced-motion:no-preference){.route{stroke-dasharray:6 8;animation:walk 1.4s linear infinite}@keyframes walk{to{stroke-dashoffset:-28}}}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--mute);margin-top:8px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:4px}
+.live{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.live b{font-size:26px;font-variant-numeric:tabular-nums}
+.meter{height:10px;border-radius:999px;background:var(--line);overflow:hidden;margin:6px 0}.meter i{display:block;height:100%;background:var(--blue)}
+
+/* 하단 탭바 (모바일) */
+.bottom{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--surface);border-top:1px solid var(--line);display:flex;padding:6px max(8px,env(safe-area-inset-left)) max(6px,env(safe-area-inset-bottom))}
+.bottom button{flex:1;min-height:52px;border:0;background:transparent;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:12px;color:var(--mute)}
+.bottom button[aria-selected=true]{color:var(--blue);font-weight:700}
+.bottom svg{width:24px;height:24px}
+
+/* 공연 고르기 시트 */
+dialog{border:0;padding:0;border-radius:20px 20px 0 0;width:100%;max-width:640px;max-height:86vh;margin:auto auto 0;background:var(--surface);color:var(--ink)}
+dialog::backdrop{background:rgb(0 0 0/.45)}
+.sheet{padding:16px 16px max(16px,env(safe-area-inset-bottom));overflow:auto;max-height:86vh}
+.sheet header{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.sheet h2{margin:0;font-size:20px;flex:1}
+.x{width:44px;height:44px;border-radius:50%;border:0;background:var(--bg);cursor:pointer;font-size:20px}
+.showlist{display:grid;gap:8px}
+.show{text-align:left;border:1.5px solid var(--line);border-radius:14px;background:var(--surface);padding:12px 14px;cursor:pointer;display:grid;grid-template-columns:4.2em minmax(0,1fr);gap:10px;align-items:center}
+.show[aria-pressed=true]{border-color:var(--blue);background:var(--blueSoft)}
+.show .d{text-align:center;line-height:1.15}.show .d b{display:block;font-size:20px}.show .d span{font-size:12px;color:var(--mute)}
+.show .tt{font-weight:700;line-height:1.35}.show .vv{font-size:13px;color:var(--mute)}
+.sheet select{width:100%;font:inherit;min-height:48px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);padding:6px 12px;margin-top:6px}
+.src{font-size:13px;color:var(--mute);margin:8px 0 12px}
+
+footer{max-width:1240px;margin:0 auto;padding:0 16px 120px;color:var(--mute);font-size:13px}
+footer details{background:var(--surface);border-radius:var(--r);padding:4px 16px;box-shadow:var(--shadow)}
+footer summary{min-height:48px;display:flex;align-items:center;cursor:pointer;font-weight:700;color:var(--ink)}
+footer li{margin:4px 0}
+
+@media(min-width:960px){
+  .shell{padding-bottom:40px}
+  .cols{grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);align-items:start}
+  .right{position:sticky;top:76px}
+  .bottom{display:none}
+  .tabs{top:70px}.tabs .tmap{display:none}
+  #pane-map{display:block!important}
+  .mapwrap{aspect-ratio:auto;height:min(70vh,640px)}
+  dialog{border-radius:20px;margin:auto}
+  footer{padding-bottom:40px}
+}
+@media(max-width:959px){.tabs{display:none}.right{display:contents}}
+@media(max-width:420px){.times{grid-template-columns:repeat(2,minmax(0,1fr))}.times div:nth-child(3){border-left:0}.times div:nth-child(n+3){border-top:1px solid var(--line)}}
 </style>
 </head>
 <body>
-<header class="top"><div class="row">
- <div><h1><span class="sym" aria-hidden="true"><svg viewBox="0 0 24 24" width="70%" height="70%"><circle cx="12" cy="4.2" r="2.2" fill="#0b4fa3"/><path d="M11 7.5v6h5l2.5 5" stroke="#0b4fa3" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.6 10.2a6 6 0 1 0 7.9 8.2" stroke="#0b4fa3" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg></span>편한길 올팍</h1>
- <p>휠체어·유아차로, 또는 오래 걷기 힘든 몸으로 올림픽공원 공연을 보러 갈 때 필요한 정보만 모았어요. 엘리베이터가 있는 출구, 가까운 주차장, 휠체어 대여, 공연 뒤 혼잡 시간까지 한 화면에서 확인하세요.</p></div>
- <button class="btn" id="bigBtn" aria-pressed="false">글자 크게</button>
+<header class="bar"><div class="in">
+ <span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24"><circle cx="12" cy="4.2" r="2.2" fill="#0b4fa3"/><path d="M11 7.5v6h5l2.5 5" stroke="#0b4fa3" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.6 10.2a6 6 0 1 0 7.9 8.2" stroke="#0b4fa3" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg></span>
+ <h1>편한길 올팍<small>휠체어·유아차로 올림픽공원 공연 가는 길</small></h1>
+ <span class="sp"></span>
+ <button class="ghost" id="bigBtn" aria-pressed="false">글자 크게</button>
 </div></header>
-<main>
- <p class="q" id="qShow">1. 어떤 공연에 가세요?</p>
- <div class="shows" id="shows" role="group" aria-labelledby="qShow"></div>
- <p class="meta" id="evSrc" style="margin:8px 0 0"></p>
- <p class="meta" style="margin-top:4px">공연 목록에 없으면 공연장을 직접 고르세요: <select id="venueSel" aria-label="공연장 선택"></select></p>
- <p class="q" id="qMode">2. 어떻게 이동하세요?</p>
- <div class="chips" id="modes" role="group" aria-labelledby="qMode"></div>
- <p class="q" id="qWay">3. 무엇을 타고 오세요?</p>
- <div class="chips" id="ways" role="group" aria-labelledby="qWay"></div>
 
- <section class="sum" id="sum" aria-live="polite"></section>
- <div class="grid">
-  <div class="mapbox">
-   <svg id="map" viewBox="0 0 1000 640" role="img" aria-labelledby="mapTitle"><title id="mapTitle">올림픽공원 지도: 추천 출구와 공연장 경로</title></svg>
-   <div class="legend" id="legend"></div>
+<main class="shell">
+ <div class="cols">
+  <div class="left" style="display:grid;gap:16px">
+   <section class="card trip" id="trip" aria-label="내 여정"></section>
+   <section class="card times" id="times" aria-live="polite" aria-label="시간 요약"></section>
+   <div class="tabs" role="tablist" aria-label="안내 보기">
+    <button role="tab" id="t-route" aria-controls="pane-route" data-tab="route">가는 길</button>
+    <button role="tab" id="t-map" class="tmap" aria-controls="pane-map" data-tab="map">지도</button>
+    <button role="tab" id="t-after" aria-controls="pane-after" data-tab="after">공연 후</button>
+   </div>
+   <section class="card pane" id="pane-route" role="tabpanel" aria-labelledby="t-route"></section>
+   <section class="card pane" id="pane-after" role="tabpanel" aria-labelledby="t-after"></section>
   </div>
-  <div id="cards"></div>
+  <div class="right">
+   <section class="card mapcard pane" id="pane-map" role="tabpanel" aria-labelledby="t-map">
+    <div class="mapwrap" id="mapwrap">
+     <svg id="map" role="img" aria-labelledby="mapTitle"><title id="mapTitle">올림픽공원 지도</title></svg>
+     <div class="zoom"><button id="zin" aria-label="확대">+</button><button id="zout" aria-label="축소">−</button><button id="zfit" aria-label="경로에 맞추기"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button></div>
+    </div>
+    <div class="layers" id="layers" aria-label="지도에 표시할 것"></div>
+    <p class="mapnote" id="mapnote"></p>
+   </section>
+  </div>
  </div>
-
- <details><summary>데이터 출처와 한계</summary><div id="sources"></div></details>
 </main>
-<footer>편한길 올팍 · 2026년도 한국체육산업개발(주) 공공데이터 활용 경진대회 응모작 · 지도 윤곽 © OpenStreetMap contributors (ODbL) · 걷는 시간은 직선거리 기반 추정이며 실제 경사·턱은 현장에서 다를 수 있어요.</footer>
-<script src="data.js?v=20261121b"></script>
-<script src="config.js?v=20261121b"></script>
-<script src="events.js?v=20261121b"></script>
-<script src="app.js?v=20261121b"></script>
+<footer><details><summary>데이터 출처와 한계</summary><div id="sources"></div></details>
+<p>편한길 올팍 · 2026년도 한국체육산업개발(주) 공공데이터 활용 경진대회 응모작 · 지도 © OpenStreetMap contributors (ODbL)</p></footer>
+
+<nav class="bottom" role="tablist" aria-label="안내 보기">
+ <button role="tab" data-tab="route"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M6 17V9a3 3 0 0 1 3-3h4M18 7v8a3 3 0 0 1-3 3h-4"/></svg>가는 길</button>
+ <button role="tab" data-tab="map"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14"/></svg>지도</button>
+ <button role="tab" data-tab="after"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>공연 후</button>
+</nav>
+
+<dialog id="sheet" aria-labelledby="sheetTitle"><div class="sheet">
+ <header><h2 id="sheetTitle">어떤 공연에 가세요?</h2><button class="x" id="sheetX" aria-label="닫기">×</button></header>
+ <p class="src" id="evSrc"></p>
+ <div class="showlist" id="shows"></div>
+ <p style="margin:16px 0 0;font-weight:700">목록에 없으면 공연장만 고르기</p>
+ <select id="venueSel" aria-label="공연장 선택"></select>
+</div></dialog>
+
+<script src="data.js?v=20261121d"></script>
+<script src="config.js?v=20261121d"></script>
+<script src="events.js?v=20261121d"></script>
+<script src="app.js?v=20261121d"></script>
 </body>
 </html>

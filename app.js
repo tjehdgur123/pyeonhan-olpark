@@ -19,13 +19,16 @@ const I = {
   phone: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg>'
 };
 
+// ---------- 글자 크기 (보통 16px · 크게 20px · 아주 크게 24px) ----------
+let fsLevel = 0;
+function setFs(n) { fsLevel = +n || 0; const r = document.documentElement; r.classList.remove('fs1', 'fs2'); if (fsLevel) r.classList.add('fs' + fsLevel); const b = document.getElementById('bigBtn'); if (b) { const n = ['보통', '크게', '아주 크게'][fsLevel]; b.textContent = '가 ' + n; b.setAttribute('aria-label', `글자 크기 바꾸기, 지금 ${n}`); } }
 // ---------- 상태 ----------
 const MODES = [{id:'wheel', label:'휠체어', speed:55, icon:I.wheel}, {id:'stroller', label:'유아차', speed:60, icon:I.stroller}, {id:'slow', label:'걷기 힘듦', speed:40, icon:I.slow}];
 const WAYS = [{id:'subway', label:'지하철', icon:I.train}, {id:'car', label:'자동차', icon:I.car}];
 const st = {show:null, venue:'kspodome', mode:'wheel', way:'subway', tab:'route', layers:{toilet:true, center:true, store:false, path:true}};
 const live = {parking:null, elev:null, ramp:null};
-try { const s = JSON.parse(localStorage.getItem('pyeonhan') || '{}'); if (s.mode) st.mode = s.mode; if (s.way) st.way = s.way; if (s.big) document.body.classList.add('big'); } catch(e) {}
-const save = () => { try { localStorage.setItem('pyeonhan', JSON.stringify({mode:st.mode, way:st.way, big:document.body.classList.contains('big')})); } catch(e) {} };
+try { const s = JSON.parse(localStorage.getItem('pyeonhan') || '{}'); if (s.mode) st.mode = s.mode; if (s.way) st.way = s.way; if (s.fs) setFs(s.fs); else if (s.big) setFs(1); } catch(e) {}
+const save = () => { try { localStorage.setItem('pyeonhan', JSON.stringify({mode:st.mode, way:st.way, fs:fsLevel})); } catch(e) {} };
 
 // ---------- 계산 ----------
 const rad = d => d * Math.PI / 180;
@@ -362,11 +365,11 @@ document.addEventListener('click', e => {
   else if (b.dataset.rate !== undefined) { sp.rate = sp.rate < 1 ? 1 : 0.8; try { localStorage.setItem('pyeonhanRate', sp.rate); } catch(e) {} refreshBars(); if (sp.on) sayPane(sp.pane); }
   else if (b.dataset.say !== undefined) { const stEl = b.closest('.step'), pane = b.closest('.pane').id.slice(5), idx = [...document.querySelectorAll(`#pane-${pane} .step`)].indexOf(stEl); sayList(pane, [{step:idx, text:speakable(stEl)}], 0); }
   else if (b.id === 'mapsay') { if (sp.on && sp.pane === 'map') { stopSpeak(); return; } const items = [...$('#mapdesc').querySelectorAll('li')].map(li => ({step:-1, text:speakable(li)})); const c = centerFor(venue()), tl = toiletsNear(venue()); items.unshift({step:-1, text:`지도 안내예요. 파란 선은 계단을 피한 길이에요.`}); items.push({step:-1, text:`공연장에서 가장 가까운 화장실은 ${tl[0].p}, 약 ${r10(tl[0].m)}미터 거리예요. 휠체어 대여는 ${c.name}에서 해요.`}); sayList('map', items, 0); }
-  else if (b.id === 'bigBtn') { const on = document.body.classList.toggle('big'); b.setAttribute('aria-pressed', on); save(); }
+  else if (b.id === 'bigBtn') { setFs((fsLevel + 1) % 3); save(); drawMap(); }
 });
 $('#sheet').addEventListener('click', e => { if (e.target === $('#sheet')) $('#sheet').close(); });
 $('#venueSel').addEventListener('change', e => { if (!D.venues.some(v => v.id === e.target.value)) return; st.venue = e.target.value; if (st.show && st.show.venue !== st.venue) st.show = null; $('#sheet').close(); render(); });
-$('#bigBtn').setAttribute('aria-pressed', document.body.classList.contains('big'));
+setFs(fsLevel);
 addEventListener('hashchange', () => setTab(location.hash.slice(1) || 'route'));
 addEventListener('resize', () => setTab(st.tab));
 

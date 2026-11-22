@@ -14,6 +14,8 @@ const I = {
   train: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="3" width="14" height="13" rx="3"/><path d="M5 11h14M8 20l-2 2M16 20l2 2M9 16v.01M15 16v.01"/></svg>',
   car: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 16V11l2-5h10l2 5v5M3 16h18v3H3zM7 19v2M17 19v2M5 11h14"/></svg>',
   swap: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 4v16M7 4 4 7M7 4l3 3M17 20V4M17 20l-3-3M17 20l3-3"/></svg>',
+  spk: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4zM16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>',
+  stop: '<svg class="i" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>',
   phone: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg>'
 };
 
@@ -45,6 +47,71 @@ function path(fromId, ll, v) {
 const exitsFor = v => D.stations.flatMap(s => s.ev.map(e => ({s, e, id:s.id + '-' + e.no, ll:e.ll}))).map(x => ({...x, p:path(x.id, x.ll, v)})).sort((a,b) => a.p.m - b.p.m);
 const centerFor = v => D.centers.map((c, i) => ({...c, id:'center-' + i, p:path('center-' + i, [c.lat,c.lng], v)})).sort((a,b) => a.p.m - b.p.m)[0];
 const toiletsNear = v => D.fac.filter(f => f.k === '화장실').map(f => ({...f, m:dist(f.ll, vll(v))})).sort((a,b) => a.m - b.m).slice(0, 2);
+
+
+// ---------- 음성 안내 (브라우저 내장 Web Speech API, 서버·비용 없음) ----------
+const SPEECH = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
+const sp = {on:false, pane:null, idx:-1, queue:[], rate:1};
+try { sp.rate = +(localStorage.getItem('pyeonhanRate') || 1); } catch(e) {}
+const koVoice = () => (speechSynthesis.getVoices() || []).filter(v => /^ko/i.test(v.lang)).sort((a,b) => (b.localService - a.localService))[0];
+function speakable(el) {
+  const c = el.cloneNode(true);
+  c.querySelectorAll('.say, .dot, svg, .speak').forEach(x => x.remove());
+  c.querySelectorAll('.exit').forEach(x => x.textContent = x.textContent + '번');
+  c.querySelectorAll('h3').forEach(x => x.textContent = x.textContent.trim() + '. ');
+  c.querySelectorAll('dt').forEach(x => x.textContent = x.textContent.trim() + ': ');
+  c.querySelectorAll('dd, p, .note').forEach(x => x.append('. '));
+  let t = c.innerText.replace(/번번/g, '번');
+  return t
+    .replace(/\b0(\d{1,2})-(\d{3,4})-(\d{4})(~\d)?/g, (m, a, b, c2) => ['0' + a, b, c2].map(g => g.split('').join(' ')).join(', '))
+    .replace(/(\d{1,2}):(\d{2})\s*~\s*(\d{1,2}):(\d{2})/g, (m, a, b, c2, d) => `${+a}시${+b ? ' ' + +b + '분' : ''}부터 ${+c2}시${+d ? ' ' + +d + '분' : ''}까지`)
+    .replace(/(\d{1,2}):(\d{2})/g, (m, a, b) => `${+a}시${+b ? ' ' + +b + '분' : ''}`)
+    .replace(/\bB(\d)\b/g, '지하 $1층').replace(/\b(\d)F\b/g, '지상 $1층')
+    .replace(/(\d)-(\d) 칸/g, '$1 다시 $2번 칸').replace(/(\d)-(\d)/g, '$1 다시 $2')
+    .replace(/(\d)m\b/g, '$1미터').replace(/↔/g, '에서 ').replace(/[·•|]/g, ', ').replace(/\.\s*\./g, '.').replace(/\s+/g, ' ').replace(/\s+([.,])/g, '$1').trim();
+}
+function speakBar(pane) {
+  if (!SPEECH) return '';
+  const on = sp.on && sp.pane === pane;
+  return `<div class="speak" role="group" aria-label="음성 안내"><button class="sayall ${on ? 'on' : ''}" data-sayall="${pane}" aria-pressed="${on}">${on ? I.stop + ' 그만 듣기' : I.spk + (pane === 'route' ? ' 가는 길 소리로 듣기' : ' 공연 후 안내 듣기')}</button><button class="rate" data-rate aria-label="말하기 속도">${sp.rate < 1 ? '천천히' : '보통 속도'}</button></div>`;
+}
+function stopSpeak() { if (!SPEECH) return; sp.on = false; sp.idx = -1; sp.queue = []; speechSynthesis.cancel(); markSpeaking(); refreshBars(); }
+function refreshBars() { document.querySelectorAll('.speak').forEach(b => { const p = b.querySelector('[data-sayall]').dataset.sayall; b.outerHTML = speakBar(p); }); }
+function markSpeaking() {
+  document.querySelectorAll('.step.speaking').forEach(s => s.classList.remove('speaking'));
+  if (!sp.on || sp.idx < 0) return;
+  const s = document.querySelectorAll(`#pane-${sp.pane} .step`)[sp.idx];
+  if (s) s.classList.add('speaking');
+}
+function sayList(pane, items, startIdx) {
+  if (!SPEECH) return;
+  speechSynthesis.cancel();
+  sp.on = true; sp.pane = pane; sp.queue = items; refreshBars();
+  const next = i => {
+    if (!sp.on || i >= sp.queue.length) { stopSpeak(); return; }
+    const it = sp.queue[i];
+    sp.idx = it.step; markSpeaking();
+    const el = document.querySelectorAll(`#pane-${pane} .step`)[it.step];
+    if (el) el.scrollIntoView({block:'nearest', behavior:'smooth'});
+    const u = new SpeechSynthesisUtterance(it.text);
+    u.lang = 'ko-KR'; u.rate = sp.rate; const v = koVoice(); if (v) u.voice = v;
+    u.onend = () => { if (sp.on) next(i + 1); };
+    u.onerror = () => stopSpeak();
+    speechSynthesis.speak(u);
+  };
+  next(startIdx || 0);
+}
+function sayPane(pane) {
+  const root = $('#pane-' + pane), steps = [...root.querySelectorAll('.step')];
+  const v = venue(), s = curShow(), T = timesFor();
+  let intro = pane === 'route'
+    ? `${s ? s.title + ', ' : ''}${v.name}까지 ${mode().label}로 가는 길을 안내할게요.${T.arrive ? ` ${hm(T.arrive)}까지 ${st.way === 'subway' ? '역에' : '주차장에'} 도착하면 좋아요.` : ''}`
+    : (T.end ? `공연은 ${hm(T.end)}쯤 끝나요. 혼잡을 피하려면 ${hm(T.leave)} 이후에 나서세요. 공연이 끝나고 40분에서 50분 동안 차와 사람이 가장 많아요.` : '공연이 끝나면 40분에서 50분 동안 붐벼요.');
+  const items = [{step:-1, text:speakable({cloneNode:() => { const d = document.createElement('div'); d.textContent = intro; return d; }})}];
+  steps.forEach((el, i) => items.push({step:i, text:`${i + 1}단계. ` + speakable(el)}));
+  sayList(pane, items, 0);
+}
+if (SPEECH) { speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = () => {}; }
 
 // ---------- 공연 ----------
 const now = new Date();
@@ -85,7 +152,7 @@ function timesFor() {
 }
 
 // ---------- 가는 길 ----------
-function stepHTML(dot, title, body, y) { return `<li class="step"><span class="dot ${y ? 'y' : ''}" aria-hidden="true">${dot}</span><div><h3>${title}</h3>${body}</div></li>`; }
+function stepHTML(dot, title, body, y) { return `<li class="step"><span class="dot ${y ? 'y' : ''}" aria-hidden="true">${dot}</span><div><div class="sh"><h3>${title}</h3>${SPEECH ? `<button class="say" data-say aria-label="이 단계 소리로 듣기">${I.spk}</button>` : ''}</div>${body}</div></li>`; }
 function elevNote(S) {
   if (!live.elev) return `<p class="meta">엘리베이터 실시간 정보를 불러오는 중…</p>`;
   if (live.elev === 'fail') return `<div class="note info">${I.info}<span>엘리베이터 실시간 정보를 지금 불러오지 못했어요. 출발 전 역에 전화로 확인하세요.</span></div>`;
@@ -99,7 +166,7 @@ function elevNote(S) {
 }
 function renderRoute() {
   const v = venue(), m = mode(), s = curShow(), T = timesFor(), c = centerFor(v);
-  let h = '<ol class="steps">';
+  let h = speakBar('route') + '<ol class="steps">';
   if (st.way === 'subway') {
     const ex = exitsFor(v), best = ex[0], S = best.s;
     h += stepHTML('1', '출발 전 확인', elevNote(S) + `<dl class="facts"><dt>${I.phone} 역 전화</dt><dd><a href="tel:${S.tel.replace(/-/g,'')}">${S.tel}</a> (${esc(S.name)} ${esc(S.line)})</dd>${S.ramp != null ? `<dt>안전발판</dt><dd>${S.ramp ? '있음 · 승강장 틈이 걱정되면 역에 요청' : '보유 정보 없음'}</dd>` : ''}</dl>`);
@@ -130,12 +197,13 @@ function renderRoute() {
     h += `<details class="alt"><summary>다른 역으로 가기 (${alts.length})</summary>${alts.map(x => `<div class="altrow"><p style="margin:0"><span class="pill" style="background:${x.s.color}">${x.s.line}</span> <b>${esc(x.s.name)}</b> <span class="exit">${x.e.no}</span>번 출구 → 약 ${mins(x.p.m)}분</p>${x.s.warn ? `<p class="meta">${esc(x.s.warn)}</p>` : ''}${elevNote(x.s)}</div>`).join('')}</details>`;
   }
   $('#pane-route').innerHTML = h;
+  markSpeaking();
 }
 
 // ---------- 공연 후 ----------
 function renderAfter() {
   const T = timesFor(), A = D.exit.aligned, mx = Math.max(...A.event);
-  let h = '';
+  let h = speakBar('after');
   if (T.end) h += `<p class="meta" style="margin:0">혼잡을 피해 나서기 좋은 시각</p><div class="big">${hm(T.leave)} 이후</div><p>공연이 끝나고 40~50분 동안 차와 사람이 한꺼번에 빠져나가요. 엘리베이터와 출구 앞 줄도 이때 가장 길어요.</p>`;
   else h += `<h3 style="margin:0 0 4px">공연이 끝나면 40~50분은 붐벼요</h3>`;
   h += `<div class="bars" role="img" aria-label="공연 종료 전후 10분 단위 출차 대수. 종료 후 10분에 평균 ${Math.max(...A.event)}대로 가장 많고 50분 뒤 평소 수준">${A.min.map((o, i) => {
@@ -150,6 +218,7 @@ function renderAfter() {
    ${stepHTML('2', '돌아가는 길', st.way === 'subway' ? `<p>올 때와 같은 <span class="exit">${exitsFor(venue())[0].e.no}</span>번 출구 엘리베이터를 이용하세요.</p>` : '<p>출차가 줄어드는 종료 50분 뒤부터 주차장을 나서면 기다림이 짧아요.</p>')}
   </ol>`;
   $('#pane-after').innerHTML = h;
+  markSpeaking();
 }
 
 // ---------- 지도 ----------
@@ -208,6 +277,7 @@ function zoom(f, cx, cy) { const nw = Math.min(W*1.6, Math.max(120, vb.w * f)), 
 
 // ---------- 탭 ----------
 function setTab(t) {
+  if (st.tab !== t) stopSpeak();
   st.tab = t;
   const desk = matchMedia('(min-width:960px)').matches;
   if (desk && t === 'map') st.tab = t = 'route';
@@ -237,6 +307,9 @@ document.addEventListener('click', e => {
   else if (b.id === 'openSheet') { renderShows(); $('#sheet').showModal(); }
   else if (b.id === 'sheetX') $('#sheet').close();
   else if (b.classList.contains('show')) { st.show = shows[+b.dataset.i]; st.venue = st.show.venue; $('#sheet').close(); render(); }
+  else if (b.dataset.sayall !== undefined) { if (sp.on && sp.pane === b.dataset.sayall) stopSpeak(); else sayPane(b.dataset.sayall); }
+  else if (b.dataset.rate !== undefined) { sp.rate = sp.rate < 1 ? 1 : 0.8; try { localStorage.setItem('pyeonhanRate', sp.rate); } catch(e) {} refreshBars(); if (sp.on) sayPane(sp.pane); }
+  else if (b.dataset.say !== undefined) { const stEl = b.closest('.step'), pane = b.closest('.pane').id.slice(5), idx = [...document.querySelectorAll(`#pane-${pane} .step`)].indexOf(stEl); sayList(pane, [{step:idx, text:speakable(stEl)}], 0); }
   else if (b.id === 'bigBtn') { const on = document.body.classList.toggle('big'); b.setAttribute('aria-pressed', on); save(); }
 });
 $('#sheet').addEventListener('click', e => { if (e.target === $('#sheet')) $('#sheet').close(); });

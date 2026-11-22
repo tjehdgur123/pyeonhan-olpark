@@ -96,6 +96,7 @@ details.alt summary{min-height:44px;display:flex;align-items:center;cursor:point
 .sayall{min-height:48px;padding:6px 16px;border-radius:12px;border:0;background:var(--blueBg);color:#fff;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:8px;flex:1 1 auto;justify-content:center}
 .sayall.on{background:#d9480f}
 .rate{min-height:48px;padding:6px 14px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);cursor:pointer;font-size:14px}
+.turns{margin:8px 0 4px;padding-left:1.3em;font-size:15px}.turns li{margin:4px 0;padding-left:2px}
 .sh{display:flex;align-items:flex-start;gap:8px}.sh h3{flex:1}
 .say{flex:none;width:40px;height:40px;margin-top:2px;border-radius:50%;border:1.5px solid var(--line);background:var(--surface);color:var(--blue);cursor:pointer;display:grid;place-items:center}
 .step.speaking>div{background:var(--blueSoft);border-radius:12px;box-shadow:0 0 0 6px var(--blueSoft)}
@@ -201,6 +202,7 @@ footer li{margin:4px 0}
     </div>
     <div class="layers" id="layers" aria-label="지도에 표시할 것"></div>
     <p class="mapnote" id="mapnote"></p>
+    <div style="padding:0 12px 12px"><button class="sayall" id="mapsay" hidden><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4zM16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg> 지도 설명 듣기</button><div id="mapdesc" style="margin-top:12px"></div></div>
    </section>
   </div>
  </div>
@@ -222,9 +224,9 @@ footer li{margin:4px 0}
  <select id="venueSel" aria-label="공연장 선택"></select>
 </div></dialog>
 
-<script src="data.js?v=20261123a"></script>
-<script src="config.js?v=20261123a"></script>
-<script src="events.js?v=20261123a"></script>
-<script src="app.js?v=20261123a"></script>
+<script src="data.js?v=20261123c"></script>
+<script src="config.js?v=20261123c"></script>
+<script src="events.js?v=20261123c"></script>
+<script src="app.js?v=20261123c"></script>
 </body>
 </html>

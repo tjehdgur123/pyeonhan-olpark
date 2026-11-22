@@ -113,6 +113,54 @@ function sayPane(pane) {
 }
 if (SPEECH) { speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = () => {}; }
 
+
+// ---------- 말로 하는 길 안내 (경로 꺾임·거리·주변 표지를 문장으로) ----------
+const toXY = ll => [(ll[1] - 127.12) * 88300, (ll[0] - 37.518) * 111000]; // 동(x)·북(y) 미터
+const bearing = (a, b) => { const p = toXY(a), q = toXY(b); return (Math.atan2(q[0]-p[0], q[1]-p[1]) * 180 / Math.PI + 360) % 360; };
+const COMPASS = ['북쪽','북동쪽','동쪽','남동쪽','남쪽','남서쪽','서쪽','북서쪽'];
+const compass = b => COMPASS[Math.round(b / 45) % 8];
+const josa = w => { const h = w.replace(/\([^)]*\)\s*$/, '').match(/[가-힣](?=[^가-힣]*$)/); return h && (h[0].charCodeAt(0) - 0xac00) % 28 === 0 ? '가' : '이'; };
+const r10 = m => Math.max(10, Math.round(m / 10) * 10);
+function directions(pts, v, fromLabel) {
+  // 1) 구간 나누기: 30도 넘게 꺾이는 곳에서 새 구간
+  const legs = [];
+  for (let i = 1; i < pts.length; i++) {
+    const m = dist(pts[i-1], pts[i]); if (m < 1) continue;
+    const b = bearing(pts[i-1], pts[i]), L = legs[legs.length - 1];
+    if (L) { let d = ((b - L.b + 540) % 360) - 180; if (Math.abs(d) < 40 || m < 15) { L.m += m; L.end = pts[i]; L.pts.push(pts[i]); continue; } }
+    legs.push({b, m, start:pts[i-1], end:pts[i], pts:[pts[i-1], pts[i]]});
+  }
+  // 아주 짧은 구간은 앞 구간에 합치기
+  for (let i = legs.length - 1; i > 0; i--) if (legs[i].m < 30) { legs[i-1].m += legs[i].m; legs[i-1].end = legs[i].end; legs.splice(i, 1); }
+  for (let i = legs.length - 1; i > 0; i--) { const d = ((legs[i].b - legs[i-1].b + 540) % 360) - 180; if (Math.abs(d) < 40) { legs[i-1].m += legs[i].m; legs[i-1].end = legs[i].end; legs[i-1].pts.push(...legs[i].pts); legs.splice(i, 1); } }
+  // 2) 길 주변 표지
+  const pois = [
+    ...D.fac.filter(f => f.k === '화장실').map(f => ({name:'화장실', ll:f.ll, pr:2})),
+    ...D.centers.map(c => ({name:c.name + '(휠체어 대여)', ll:[c.lat, c.lng], pr:0})),
+    ...D.landmarks.map(l => ({name:l.name, ll:[l.lat, l.lng], pr:0})),
+    ...D.venues.filter(x => x.id !== v.id).map(x => ({name:x.name, ll:vll(x), pr:1}))
+  ];
+  const used = new Set();
+  const side = (leg, ll) => { const a = toXY(leg.start), b = toXY(leg.end), p = toXY(ll); return ((b[0]-a[0])*(p[1]-a[1]) - (b[1]-a[1])*(p[0]-a[0])) > 0 ? '왼쪽' : '오른쪽'; };
+  const near = leg => { let best = null; for (const p of pois) { if (used.has(p.name)) continue; let d = 1e9; const P0 = toXY(p.ll); for (let k = 1; k < leg.pts.length; k++) { const A = toXY(leg.pts[k-1]), B2 = toXY(leg.pts[k]), dx = B2[0]-A[0], dy = B2[1]-A[1], L2 = dx*dx + dy*dy || 1; const t = Math.max(0, Math.min(1, ((P0[0]-A[0])*dx + (P0[1]-A[1])*dy) / L2)); d = Math.min(d, Math.hypot(A[0] + t*dx - P0[0], A[1] + t*dy - P0[1])); } if (d < 60 && (!best || p.pr < best.pr || (p.pr === best.pr && d < best.d))) best = {...p, d}; } if (best) used.add(best.name); return best; };
+  // 3) 문장
+  const out = [];
+  legs.forEach((L, i) => {
+    let s;
+    if (i === 0) s = `${fromLabel}에서 나와 ${compass(L.b)}으로 약 ${r10(L.m)}미터 가세요.`;
+    else {
+      const d = ((L.b - legs[i-1].b + 540) % 360) - 180;
+      const turn = Math.abs(d) > 135 ? '뒤로 돌아' : (d > 0 ? '오른쪽으로 꺾어' : '왼쪽으로 꺾어');
+      s = `${turn} ${compass(L.b)}으로 약 ${r10(L.m)}미터 가세요.`;
+    }
+    const p = near(L); if (p) s += ` ${side(L, p.ll)}에 ${p.name}${josa(p.name)} 있어요.`
+    out.push(s);
+  });
+  const last = legs[legs.length - 1];
+  if (last) out.push(`${esc(v.name)}에 도착해요.`);
+  return out;
+}
+
 // ---------- 공연 ----------
 const now = new Date();
 let shows = [], evSource = 'snapshot';
@@ -172,7 +220,7 @@ function renderRoute() {
     h += stepHTML('1', '출발 전 확인', elevNote(S) + `<dl class="facts"><dt>${I.phone} 역 전화</dt><dd><a href="tel:${S.tel.replace(/-/g,'')}">${S.tel}</a> (${esc(S.name)} ${esc(S.line)})</dd>${S.ramp != null ? `<dt>안전발판</dt><dd>${S.ramp ? '있음 · 승강장 틈이 걱정되면 역에 요청' : '보유 정보 없음'}</dd>` : ''}</dl>`);
     h += stepHTML('2', `<span class="pill" style="background:${S.color}">${S.line}</span> ${esc(S.name)}에서 내리기`, `<p>엘리베이터와 가까운 칸: <b>${esc(S.board)}</b></p>`);
     h += stepHTML('3', `<span class="exit">${best.e.no}</span>번 출구 엘리베이터로 지상까지`, `<p class="meta">${esc(S.ground)}</p>${S.warn ? `<div class="note warn">${I.warn}<span>${esc(S.warn)}</span></div>` : ''}`, true);
-    h += stepHTML('4', `${esc(v.name)}까지 약 ${mins(best.p.m)}분`, `<p>${best.p.real ? `계단을 피한 길로 약 <b>${Math.round(best.p.m)}m</b> (${m.label} 기준)` : `약 ${Math.round(best.p.m)}m 추정 (직선거리 기반, ${m.label} 기준)`}</p>${best.p.steps ? `<div class="note warn">${I.warn}<span>계단 없는 길을 찾지 못해 일부 구간에 계단이 있을 수 있어요.</span></div>` : ''}`);
+    h += stepHTML('4', `${esc(v.name)}까지 약 ${mins(best.p.m)}분`, `<p>${best.p.real ? `계단을 피한 길로 약 <b>${Math.round(best.p.m)}m</b> (${m.label} 기준)` : `약 ${Math.round(best.p.m)}m 추정 (직선거리 기반, ${m.label} 기준)`}</p>${best.p.steps ? `<div class="note warn">${I.warn}<span>계단 없는 길을 찾지 못해 일부 구간에 계단이 있을 수 있어요.</span></div>` : ''}${best.p.real ? `<ol class="turns">${directions(best.p.pts, v, `${best.s.name} ${best.e.no}번 출구`).map(t => `<li>${t}</li>`).join('')}</ol><p class="meta">방향과 거리는 OpenStreetMap 보행로 기준 추정이에요. 현장 안내판을 함께 확인하세요.</p>` : ''}`);
   } else {
     const ps = D.pstats.full_days_by_lot, lot = v.parking || '가까운 공연장 주차장', lots = (v.parking || '').match(/P\d+[AB]?/g) || [];
     const lp = live.parking;
@@ -251,6 +299,9 @@ function drawMap() {
   [['몽촌토성역', D.stations[2].ev[0].ll, 0, -30], ['한성백제역', D.stations[3].ev[0].ll, 0, 44], ['올림픽공원역', D.stations[0].ev[0].ll, -10, 48]].forEach(([n, ll, dx, dy]) => { g += mark(ll, `<text x="${dx}" y="${dy}" font-size="19" font-weight="700" text-anchor="middle" fill="var(--ink)" paint-order="stroke" stroke="var(--bg)" stroke-width="5">${n}</text>`, n); });
   svg.innerHTML = g;
   fit(route || [vll(v), [centerFor(v).lat, centerFor(v).lng]]);
+  const dirs = st.way === 'subway' && exitsFor(v)[0].p.real ? directions(exitsFor(v)[0].p.pts, v, `${exitsFor(v)[0].s.name} ${exitsFor(v)[0].e.no}번 출구`) : [];
+  $('#mapsay').hidden = !SPEECH || !dirs.length;
+  $('#mapdesc').innerHTML = dirs.length ? `<h3 style="margin:0 0 6px;font-size:16px">지도 내용 글로 보기</h3><ol class="turns">${dirs.map(t => `<li>${t}</li>`).join('')}</ol>` : '';
   $('#mapnote').textContent = st.way === 'subway' ? (exitsFor(v)[0].p.real ? '파란 선: 계단을 피한 보행로 (OpenStreetMap 보행로 기준).' : '파란 선: 출구에서 공연장까지 방향 (실제 길은 현장 안내를 따르세요).') : '노란 i: 휠체어 무료 대여 안내센터';
 }
 function fit(list) {
@@ -310,10 +361,11 @@ document.addEventListener('click', e => {
   else if (b.dataset.sayall !== undefined) { if (sp.on && sp.pane === b.dataset.sayall) stopSpeak(); else sayPane(b.dataset.sayall); }
   else if (b.dataset.rate !== undefined) { sp.rate = sp.rate < 1 ? 1 : 0.8; try { localStorage.setItem('pyeonhanRate', sp.rate); } catch(e) {} refreshBars(); if (sp.on) sayPane(sp.pane); }
   else if (b.dataset.say !== undefined) { const stEl = b.closest('.step'), pane = b.closest('.pane').id.slice(5), idx = [...document.querySelectorAll(`#pane-${pane} .step`)].indexOf(stEl); sayList(pane, [{step:idx, text:speakable(stEl)}], 0); }
+  else if (b.id === 'mapsay') { if (sp.on && sp.pane === 'map') { stopSpeak(); return; } const items = [...$('#mapdesc').querySelectorAll('li')].map(li => ({step:-1, text:speakable(li)})); const c = centerFor(venue()), tl = toiletsNear(venue()); items.unshift({step:-1, text:`지도 안내예요. 파란 선은 계단을 피한 길이에요.`}); items.push({step:-1, text:`공연장에서 가장 가까운 화장실은 ${tl[0].p}, 약 ${r10(tl[0].m)}미터 거리예요. 휠체어 대여는 ${c.name}에서 해요.`}); sayList('map', items, 0); }
   else if (b.id === 'bigBtn') { const on = document.body.classList.toggle('big'); b.setAttribute('aria-pressed', on); save(); }
 });
 $('#sheet').addEventListener('click', e => { if (e.target === $('#sheet')) $('#sheet').close(); });
-$('#venueSel').addEventListener('change', e => { st.venue = e.target.value; if (st.show && st.show.venue !== st.venue) st.show = null; $('#sheet').close(); render(); });
+$('#venueSel').addEventListener('change', e => { if (!D.venues.some(v => v.id === e.target.value)) return; st.venue = e.target.value; if (st.show && st.show.venue !== st.venue) st.show = null; $('#sheet').close(); render(); });
 $('#bigBtn').setAttribute('aria-pressed', document.body.classList.contains('big'));
 addEventListener('hashchange', () => setTab(location.hash.slice(1) || 'route'));
 addEventListener('resize', () => setTab(st.tab));
@@ -326,7 +378,7 @@ $('#sources').innerHTML = `<ul>
 <p><b>한계</b>: 공원 안 경사로 기울기·턱·장애인 화장실 위치는 공개 데이터가 없어요. 보행로는 OpenStreetMap에서 계단으로 표시된 길만 피한 것이라 현장과 다를 수 있어요. 공연 종료 시각은 공식 소요시간이 없으면 150분으로 추정해요.</p>`;
 
 // ---------- 시작 ----------
-render(); setTab(location.hash.slice(1) || 'route'); st.started = true;
+renderShows(); render(); setTab(location.hash.slice(1) || 'route'); st.started = true;
 (async () => { try { const j = await fetch(C.PARKING_API).then(r => r.json()); const p = +j[0].parking_sum; if (p >= 0) { live.parking = {p, at:hm(new Date()) + ' 실시간'}; if (st.way === 'car') renderRoute(); } } catch(e) {} })();
 (async () => { try { if (!C.LIVE_API) throw 0; const j = await fetch(C.LIVE_API + '/elevators').then(r => r.json()); live.elev = j.items && j.items.length ? j : 'fail'; } catch(e) { live.elev = 'fail'; } renderRoute(); })();
 if (window.loadLiveEvents) loadLiveEvents(D.venues).then(ev => { if (ev.length) { evSource = 'live'; setShows(ev); render(); } }).catch(() => {});

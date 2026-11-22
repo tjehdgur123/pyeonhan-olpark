@@ -22,9 +22,10 @@
 --r:16px;--shadow:0 1px 2px rgb(16 24 32/.06),0 4px 14px rgb(16 24 32/.06)}
 :root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
 *{box-sizing:border-box;min-width:0}
+[hidden]{display:none!important}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:1rem/1.55 "IBM Plex Sans KR",system-ui,sans-serif;overflow-x:clip}
-html.fs1{font-size:20px}@media(max-width:480px){html.fs1 .bar small,html.fs2 .bar small{display:none}}html.fs2{font-size:24px}
+html.fs1{font-size:20px}@media(max-width:480px){html.fs1 .bar small,html.fs2 .bar small{display:none}}@media(max-width:420px){.bar small{display:none}}html.fs2{font-size:24px}
 html.fs2 .times{grid-template-columns:repeat(2,minmax(0,1fr))}html.fs2 .times div:nth-child(3){border-left:0}html.fs2 .times div:nth-child(n+3){border-top:1px solid var(--line)}
 a{color:var(--blue)}
 button{font:inherit;color:inherit}
@@ -55,6 +56,9 @@ svg.i{width:1.2em;height:1.2em;flex:none;vertical-align:-.22em}
 .seg .div{width:1px;background:var(--line);margin:4px 4px}
 .change{margin-top:12px;width:100%;min-height:46px;border-radius:12px;border:0;background:var(--blueSoft);color:var(--blue);font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
 
+.pick{margin-top:14px;width:100%;min-height:56px;border-radius:14px;border:0;background:var(--blueBg);color:#fff;font-weight:700;font-size:1.0625rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+.qlabel{margin:18px 0 6px;font-weight:700;font-size:0.9375rem}
+.empty{text-align:center;padding:20px 8px;color:var(--mute)}.empty svg{width:28px;height:28px}.empty p{margin:8px 0 0}
 /* 시간 요약 */
 .times{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;padding:0;overflow:hidden}
 .times div{padding:12px 12px 14px;border-left:1px solid var(--line);position:relative}
@@ -179,7 +183,7 @@ footer li{margin:4px 0}
  <span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24"><circle cx="12" cy="4.2" r="2.2" fill="#0b4fa3"/><path d="M11 7.5v6h5l2.5 5" stroke="#0b4fa3" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.6 10.2a6 6 0 1 0 7.9 8.2" stroke="#0b4fa3" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg></span>
  <h1>편한길 올팍<small>휠체어·유아차로 올림픽공원 공연 가는 길</small></h1>
  <span class="sp"></span>
- <button class="ghost" id="bigBtn" aria-label="글자 크기 바꾸기, 지금 보통">가 보통</button>
+ <button class="ghost" id="bigBtn" aria-label="글자 크기 바꾸기, 지금 보통">글자 크기 보통</button>
 </div></header>
 
 <main class="shell">
@@ -225,9 +229,9 @@ footer li{margin:4px 0}
  <select id="venueSel" aria-label="공연장 선택"></select>
 </div></dialog>
 
-<script src="data.js?v=20261123e"></script>
-<script src="config.js?v=20261123e"></script>
-<script src="events.js?v=20261123e"></script>
-<script src="app.js?v=20261123e"></script>
+<script src="data.js?v=20261123g"></script>
+<script src="config.js?v=20261123g"></script>
+<script src="events.js?v=20261123g"></script>
+<script src="app.js?v=20261123g"></script>
 </body>
 </html>

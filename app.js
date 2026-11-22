@@ -21,11 +21,11 @@ const I = {
 
 // ---------- 글자 크기 (보통 16px · 크게 20px · 아주 크게 24px) ----------
 let fsLevel = 0;
-function setFs(n) { fsLevel = +n || 0; const r = document.documentElement; r.classList.remove('fs1', 'fs2'); if (fsLevel) r.classList.add('fs' + fsLevel); const b = document.getElementById('bigBtn'); if (b) { const n = ['보통', '크게', '아주 크게'][fsLevel]; b.textContent = '가 ' + n; b.setAttribute('aria-label', `글자 크기 바꾸기, 지금 ${n}`); } }
+function setFs(n) { fsLevel = +n || 0; const r = document.documentElement; r.classList.remove('fs1', 'fs2'); if (fsLevel) r.classList.add('fs' + fsLevel); const b = document.getElementById('bigBtn'); if (b) { const n = ['보통', '크게', '아주 크게'][fsLevel]; b.textContent = '글자 크기 ' + n; b.setAttribute('aria-label', `글자 크기 바꾸기, 지금 ${n}`); } }
 // ---------- 상태 ----------
 const MODES = [{id:'wheel', label:'휠체어', speed:55, icon:I.wheel}, {id:'stroller', label:'유아차', speed:60, icon:I.stroller}, {id:'slow', label:'걷기 힘듦', speed:40, icon:I.slow}];
 const WAYS = [{id:'subway', label:'지하철', icon:I.train}, {id:'car', label:'자동차', icon:I.car}];
-const st = {show:null, venue:'kspodome', mode:'wheel', way:'subway', tab:'route', layers:{toilet:true, center:true, store:false, path:true}};
+const st = {show:null, venue:null, mode:'wheel', way:'subway', tab:'route', layers:{toilet:true, center:true, store:false, path:true}};
 const live = {parking:null, elev:null, ramp:null};
 try { const s = JSON.parse(localStorage.getItem('pyeonhan') || '{}'); if (s.mode) st.mode = s.mode; if (s.way) st.way = s.way; if (s.fs) setFs(s.fs); else if (s.big) setFs(1); } catch(e) {}
 const save = () => { try { localStorage.setItem('pyeonhan', JSON.stringify({mode:st.mode, way:st.way, fs:fsLevel})); } catch(e) {} };
@@ -171,7 +171,7 @@ function setShows(events) {
   const all = events.flatMap(e => e.shows.map(s => ({...e, at:new Date(s)})));
   const up = all.filter(s => s.at > addMin(now, -180));
   shows = (up.length ? up : all).sort((a,b) => a.at - b.at).slice(0, 16);
-  if (!st.show || !shows.some(s => s.title === st.show.title && +s.at === +st.show.at)) { st.show = shows[0] || null; if (st.show) st.venue = st.show.venue; }
+  if (st.show) { const m = shows.find(s => s.title === st.show.title && +s.at === +st.show.at); if (m) st.show = m; }
 }
 setShows(D.events);
 const curShow = () => st.show && st.show.venue === st.venue ? st.show : null;
@@ -185,7 +185,7 @@ function renderTrip() {
     <div class="where">${I.pin} ${esc(v.name)}</div>
     <div class="seg" role="group" aria-label="이동 방법">${MODES.map(m => `<button data-mode="${m.id}" aria-pressed="${st.mode === m.id}">${m.icon}${m.label}</button>`).join('')}</div>
     <div class="seg" role="group" aria-label="교통수단">${WAYS.map(w => `<button data-way="${w.id}" aria-pressed="${st.way === w.id}">${w.icon}${w.label}</button>`).join('')}</div>
-    <button class="change" id="openSheet">${I.swap} 다른 공연 고르기</button>`;
+    <button class="change" id="openSheet">${I.swap} 공연 바꾸기</button>`;
   const T = timesFor();
   $('#times').innerHTML = s ? [
     [st.way === 'subway' ? '역 도착 권장' : '주차장 도착 권장', hm(T.arrive), 'hi'],
@@ -281,10 +281,9 @@ const pts = a => a.map(P).map(p => p.join(',')).join(' ');
 let vb = {x:0, y:0, w:W, h:H};
 const setVB = () => { const svg = $('#map'); svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`); const px = $('#mapwrap').clientWidth || 600, s = Math.max(0.35, Math.min(3, vb.w / px * 0.85)); svg.querySelectorAll('.sc').forEach(g => { const [x,y] = g.dataset.p.split(','); g.setAttribute('transform', `translate(${x} ${y}) scale(${s.toFixed(3)})`); }); };
 function drawMap() {
-  const v = venue(), svg = $('#map');
+  const v = venue() || {id:'', name:'', lat:0, lng:0}, svg = $('#map'), has = !!venue();
   let route = null;
-  if (st.way === 'subway') { const b = exitsFor(v)[0]; route = b.p.pts; }
-  else { const c = centerFor(v); route = null; }
+  if (has && st.way === 'subway') route = exitsFor(v)[0].p.pts;
   const mark = (ll, inner, title, off) => { const p = P(ll); return `<g class="sc" data-p="${p[0]},${p[1]}"><title>${esc(title)}</title>${off ? `<g transform="translate(${off[0]} ${off[1]})">${inner}</g>` : inner}</g>`; };
   const OFF = {'olpark5-2':[22,20], 'olpark9-3':[-26,6], 'olpark9-4':[4,-24]};
   let g = `<title id="mapTitle">올림픽공원 지도: ${esc(v.name)}까지 경로</title><rect x="-2000" y="-2000" width="${W+4000}" height="${H+4000}" fill="var(--bg)"/>`;
@@ -297,15 +296,15 @@ function drawMap() {
   if (st.layers.store) g += D.fac.filter(f => /편의점|식음료/.test(f.k)).map(f => mark(f.ll, `<circle r="8" fill="#7048e8" stroke="#fff" stroke-width="2"/>`, `${f.k} · ${f.p}`)).join('');
   if (st.layers.center) g += D.centers.map(c => mark([c.lat,c.lng], `<circle r="15" fill="var(--yel)" stroke="#111" stroke-width="1.5"/><text y="6" font-size="17" text-anchor="middle" font-weight="700" fill="#111">i</text>`, `${c.name} · 휠체어 무료 대여`)).join('');
   g += D.venues.map(x => { const on = x.id === v.id; return mark(vll(x), `<circle r="${on ? 15 : 9}" fill="${on ? 'var(--blueBg)' : 'var(--mute)'}" stroke="#fff" stroke-width="3"/><text y="${on ? -24 : -15}" font-size="${on ? 24 : 16}" font-weight="${on ? 700 : 500}" text-anchor="middle" fill="var(--ink)" paint-order="stroke" stroke="var(--bg)" stroke-width="5">${esc(x.name)}</text>`, x.name); }).join('');
-  const best = st.way === 'subway' ? exitsFor(v)[0].id : '';
+  const best = has && st.way === 'subway' ? exitsFor(v)[0].id : '';
   D.stations.forEach(s => s.ev.forEach(e => { const id = s.id + '-' + e.no, on = id === best; g += mark(e.ll, `<rect x="-16" y="-16" width="32" height="32" rx="7" fill="${on ? 'var(--yel)' : '#fff'}" stroke="${s.color}" stroke-width="3.5"/><text y="6" font-size="18" font-weight="700" text-anchor="middle" fill="#111">${e.no}</text>`, `${s.name} ${s.line} ${e.no}번 출구 엘리베이터`, OFF[id]); }));
   [['몽촌토성역', D.stations[2].ev[0].ll, 0, -30], ['한성백제역', D.stations[3].ev[0].ll, 0, 44], ['올림픽공원역', D.stations[0].ev[0].ll, -10, 48]].forEach(([n, ll, dx, dy]) => { g += mark(ll, `<text x="${dx}" y="${dy}" font-size="19" font-weight="700" text-anchor="middle" fill="var(--ink)" paint-order="stroke" stroke="var(--bg)" stroke-width="5">${n}</text>`, n); });
   svg.innerHTML = g;
-  fit(route || [vll(v), [centerFor(v).lat, centerFor(v).lng]]);
-  const dirs = st.way === 'subway' && exitsFor(v)[0].p.real ? directions(exitsFor(v)[0].p.pts, v, `${exitsFor(v)[0].s.name} ${exitsFor(v)[0].e.no}번 출구`) : [];
+  fit(has ? (route || [vll(v), [centerFor(v).lat, centerFor(v).lng]]) : D.park);
+  const dirs = has && st.way === 'subway' && exitsFor(v)[0].p.real ? directions(exitsFor(v)[0].p.pts, v, `${exitsFor(v)[0].s.name} ${exitsFor(v)[0].e.no}번 출구`) : [];
   $('#mapsay').hidden = !SPEECH || !dirs.length;
   $('#mapdesc').innerHTML = dirs.length ? `<h3 style="margin:0 0 6px;font-size:16px">지도 내용 글로 보기</h3><ol class="turns">${dirs.map(t => `<li>${t}</li>`).join('')}</ol>` : '';
-  $('#mapnote').textContent = st.way === 'subway' ? (exitsFor(v)[0].p.real ? '파란 선: 계단을 피한 보행로 (OpenStreetMap 보행로 기준).' : '파란 선: 출구에서 공연장까지 방향 (실제 길은 현장 안내를 따르세요).') : '노란 i: 휠체어 무료 대여 안내센터';
+  $('#mapnote').textContent = !has ? '공연을 고르면 엘리베이터 출구에서 공연장까지 계단 없는 길을 그려 드려요. 노란 숫자: 엘리베이터 출구, 노란 i: 휠체어 대여.' : st.way === 'subway' ? (exitsFor(v)[0].p.real ? '파란 선: 계단을 피한 보행로 (OpenStreetMap 보행로 기준).' : '파란 선: 출구에서 공연장까지 방향 (실제 길은 현장 안내를 따르세요).') : '노란 i: 휠체어 무료 대여 안내센터';
 }
 function fit(list) {
   const p = list.map(P), xs = p.map(a => a[0]), ys = p.map(a => a[1]);
@@ -330,24 +329,43 @@ function zoom(f, cx, cy) { const nw = Math.min(W*1.6, Math.max(120, vb.w * f)), 
 }
 
 // ---------- 탭 ----------
-function setTab(t) {
+function setTab(t, quiet) {
   if (st.tab !== t) stopSpeak();
   st.tab = t;
   const desk = matchMedia('(min-width:960px)').matches;
   if (desk && t === 'map') st.tab = t = 'route';
   document.querySelectorAll('[role=tab]').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
-  $('#pane-route').hidden = t !== 'route'; $('#pane-after').hidden = t !== 'after'; $('#pane-map').hidden = !desk && t !== 'map';
-  if (t === 'map') requestAnimationFrame(drawMap);
-  if (!desk && st.started) { const el = t === 'map' ? $('#pane-map') : $('#pane-' + t); scrollTo({top:el.getBoundingClientRect().top + scrollY - 76, behavior:'smooth'}); }
+  const none = !venue(); $('#pane-route').hidden = none || t !== 'route'; $('#pane-after').hidden = none || t !== 'after'; document.querySelector('.tabs').hidden = none; $('#pane-map').hidden = !desk && t !== 'map';
+  if (t === 'map' && !quiet) requestAnimationFrame(drawMap);
+  if (!desk && st.started && !quiet) { const el = t === 'map' ? $('#pane-map') : $('#pane-' + t); scrollTo({top:el.getBoundingClientRect().top + scrollY - 76, behavior:'smooth'}); }
   if (location.hash.slice(1) !== t) history.replaceState(null, '', '#' + t);
 }
 
 // ---------- 전체 렌더 ----------
-function render() { renderTrip(); renderRoute(); renderAfter(); drawMap(); }
+function render() {
+  if (!venue()) { renderStart(); drawMap(); setTab(st.tab, true); return; }
+  $('#times').hidden = false; renderTrip(); renderRoute(); renderAfter(); drawMap(); setTab(st.tab, true);
+}
+function renderStart() {
+  const quick = shows.slice(0, 3);
+  $('#trip').innerHTML = `
+    <h2 style="margin:0 0 4px">어떤 공연에 가세요?</h2>
+    <p class="meta" style="margin:0">공연을 고르면 엘리베이터 있는 출구, 계단 없는 길, 휠체어 대여, 공연 뒤 혼잡 시간까지 알려 드려요.</p>
+    <button class="pick" id="openSheet">${I.cal} 공연 선택</button>
+    ${quick.length ? `<p class="qlabel">곧 열리는 공연</p><div class="showlist">${quick.map(s => showBtn(s, shows.indexOf(s))).join('')}</div>` : ''}
+    <p class="qlabel">이동 방법 (나중에 바꿀 수 있어요)</p>
+    <div class="seg" role="group" aria-label="이동 방법">${MODES.map(m => `<button data-mode="${m.id}" aria-pressed="${st.mode === m.id}">${m.icon}${m.label}</button>`).join('')}</div>
+    <div class="seg" role="group" aria-label="교통수단">${WAYS.map(w => `<button data-way="${w.id}" aria-pressed="${st.way === w.id}">${w.icon}${w.label}</button>`).join('')}</div>`;
+  $('#times').hidden = true;
+  const ph = t => `<div class="empty">${I.info}<p>${t}</p><button class="pick" data-open>${I.cal} 공연 선택</button></div>`;
+  $('#pane-route').innerHTML = ph('공연을 먼저 고르면 가는 길을 단계별로 안내해 드려요.');
+  $('#pane-after').innerHTML = ph('공연을 고르면 끝나는 시각에 맞춰 붐비는 시간과 나서기 좋은 시각을 알려 드려요.');
+}
+const showBtn = (s, i) => `<button class="show" data-i="${i}" aria-pressed="${s === st.show}"><span class="d"><b>${s.at.getMonth()+1}/${s.at.getDate()}</b><span>${DOW[s.at.getDay()]} ${hm(s.at)}</span></span><span><span class="tt">${esc(s.title)}</span><br><span class="vv">${esc(D.venues.find(v => v.id === s.venue).name)}</span></span></button>`;
 function renderShows() {
-  $('#shows').innerHTML = shows.map((s, i) => `<button class="show" data-i="${i}" aria-pressed="${s === st.show}"><span class="d"><b>${s.at.getMonth()+1}/${s.at.getDate()}</b><span>${DOW[s.at.getDay()]} ${hm(s.at)}</span></span><span><span class="tt">${esc(s.title)}</span><br><span class="vv">${esc(D.venues.find(v => v.id === s.venue).name)}</span></span></button>`).join('') || '<p class="meta">예정된 공연 정보가 없어요.</p>';
+  $('#shows').innerHTML = shows.map((s, i) => showBtn(s, i)).join('') || '<p class="meta">예정된 공연 정보가 없어요.</p>';
   $('#evSrc').textContent = evSource === 'live' ? '올림픽공원 공식 일정에서 방금 불러온 공연이에요.' : `공연 일정: ${D.asof} 저장본`;
-  $('#venueSel').innerHTML = D.venues.map(v => `<option value="${v.id}" ${v.id === st.venue ? 'selected' : ''}>${esc(v.name)}</option>`).join('');
+  $('#venueSel').innerHTML = `<option value="">공연장 고르기</option>` + D.venues.map(v => `<option value="${v.id}" ${v.id === st.venue ? 'selected' : ''}>${esc(v.name)}</option>`).join('');
 }
 $('#layers').innerHTML = [['path','보행로'],['toilet','화장실'],['center','안내센터'],['store','편의점']].map(([k,l]) => `<button data-k="${k}" aria-pressed="${st.layers[k]}">${l}</button>`).join('');
 
@@ -358,9 +376,9 @@ document.addEventListener('click', e => {
   else if (b.dataset.way) { st.way = b.dataset.way; save(); render(); }
   else if (b.dataset.tab) setTab(b.dataset.tab);
   else if (b.dataset.k) { st.layers[b.dataset.k] = !st.layers[b.dataset.k]; b.setAttribute('aria-pressed', st.layers[b.dataset.k]); drawMap(); }
-  else if (b.id === 'openSheet') { renderShows(); $('#sheet').showModal(); }
+  else if (b.id === 'openSheet' || b.dataset.open !== undefined) { renderShows(); $('#sheet').showModal(); }
   else if (b.id === 'sheetX') $('#sheet').close();
-  else if (b.classList.contains('show')) { st.show = shows[+b.dataset.i]; st.venue = st.show.venue; $('#sheet').close(); render(); }
+  else if (b.classList.contains('show')) { st.show = shows[+b.dataset.i]; st.venue = st.show.venue; if ($('#sheet').open) $('#sheet').close(); render(); scrollTo({top:0, behavior:'smooth'}); }
   else if (b.dataset.sayall !== undefined) { if (sp.on && sp.pane === b.dataset.sayall) stopSpeak(); else sayPane(b.dataset.sayall); }
   else if (b.dataset.rate !== undefined) { sp.rate = sp.rate < 1 ? 1 : 0.8; try { localStorage.setItem('pyeonhanRate', sp.rate); } catch(e) {} refreshBars(); if (sp.on) sayPane(sp.pane); }
   else if (b.dataset.say !== undefined) { const stEl = b.closest('.step'), pane = b.closest('.pane').id.slice(5), idx = [...document.querySelectorAll(`#pane-${pane} .step`)].indexOf(stEl); sayList(pane, [{step:idx, text:speakable(stEl)}], 0); }
@@ -382,7 +400,7 @@ $('#sources').innerHTML = `<ul>
 
 // ---------- 시작 ----------
 renderShows(); render(); setTab(location.hash.slice(1) || 'route'); st.started = true;
-(async () => { try { const j = await fetch(C.PARKING_API).then(r => r.json()); const p = +j[0].parking_sum; if (p >= 0) { live.parking = {p, at:hm(new Date()) + ' 실시간'}; if (st.way === 'car') renderRoute(); } } catch(e) {} })();
-(async () => { try { if (!C.LIVE_API) throw 0; const j = await fetch(C.LIVE_API + '/elevators').then(r => r.json()); live.elev = j.items && j.items.length ? j : 'fail'; } catch(e) { live.elev = 'fail'; } renderRoute(); })();
-if (window.loadLiveEvents) loadLiveEvents(D.venues).then(ev => { if (ev.length) { evSource = 'live'; setShows(ev); render(); } }).catch(() => {});
+(async () => { try { const j = await fetch(C.PARKING_API).then(r => r.json()); const p = +j[0].parking_sum; if (p >= 0) { live.parking = {p, at:hm(new Date()) + ' 실시간'}; if (st.way === 'car' && venue()) renderRoute(); } } catch(e) {} })();
+(async () => { try { if (!C.LIVE_API) throw 0; const j = await fetch(C.LIVE_API + '/elevators').then(r => r.json()); live.elev = j.items && j.items.length ? j : 'fail'; } catch(e) { live.elev = 'fail'; } if (venue()) renderRoute(); })();
+if (window.loadLiveEvents) loadLiveEvents(D.venues).then(ev => { if (ev.length) { evSource = 'live'; setShows(ev); renderShows(); render(); } }).catch(() => {});
 }

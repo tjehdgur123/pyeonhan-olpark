@@ -112,7 +112,7 @@ function sayPane(pane) {
   const v = venue(), s = curShow(), T = timesFor();
   let intro = pane === 'route'
     ? `${s ? s.title + ', ' : ''}${v.name}까지 ${mode().label}로 가는 길을 안내할게요.${T.arrive ? ` ${hm(T.arrive)}까지 ${st.way === 'subway' ? '역에' : '주차장에'} 도착하면 좋아요.` : ''}`
-    : (T.end ? `공연은 ${hm(T.end)}쯤 끝나요. 혼잡을 피하려면 ${hm(T.leave)} 이후에 나서세요. 공연이 끝나고 40분에서 50분 동안 차와 사람이 가장 많아요.` : '공연이 끝나면 40분에서 50분 동안 붐벼요.');
+    : (T.end ? `공연은 ${hm(T.end)}쯤 끝나요. 혼잡을 피하려면 ${hm(T.leave)} 이후에 나서세요. 공연이 끝나고 20분에서 40분 사이가 가장 붐비고, 70분 뒤에 절반으로 줄어요.` : '공연이 끝나면 1시간 넘게 붐벼요.');
   const items = [{step:-1, text:speakable({cloneNode:() => { const d = document.createElement('div'); d.textContent = intro; return d; }})}];
   steps.forEach((el, i) => items.push({step:i, text:`${i + 1}단계. ` + speakable(el)}));
   sayList(pane, items, 0);
@@ -209,7 +209,7 @@ function timesFor() {
   const s = curShow(), v = venue(); if (!s) return {};
   const walkM = st.way === 'subway' ? exitsFor(v)[0].p.m : 150;
   const end = addMin(s.at, s.dur);
-  return {start:s.at, end, arrive:addMin(s.at, -(60 + mins(walkM))), leave:addMin(end, 50)};
+  return {start:s.at, end, arrive:addMin(s.at, -(60 + mins(walkM))), leave:addMin(end, 70)};
 }
 
 // ---------- 가는 길 ----------
@@ -263,20 +263,23 @@ function renderRoute() {
 
 // ---------- 공연 후 ----------
 function renderAfter() {
-  const T = timesFor(), A = D.exit.aligned, mx = Math.max(...A.event);
+  const T = timesFor(), A = D.exit25, mx = Math.max(...A.event), v = venue();
   let h = speakBar('after');
-  if (T.end) h += `<p class="meta" style="margin:0">혼잡을 피해 나서기 좋은 시각</p><div class="big">${hm(T.leave)} 이후</div><p>공연이 끝나고 40~50분 동안 차와 사람이 한꺼번에 빠져나가요. 엘리베이터와 출구 앞 줄도 이때 가장 길어요.</p>`;
-  else h += `<h3 style="margin:0 0 4px">공연이 끝나면 40~50분은 붐벼요</h3>`;
-  h += `<div class="bars" role="img" aria-label="공연 종료 전후 10분 단위 출차 대수. 종료 후 10분에 평균 ${Math.max(...A.event)}대로 가장 많고 50분 뒤 평소 수준">${A.min.map((o, i) => {
+  if (T.end) h += `<p class="meta" style="margin:0">혼잡을 피해 나서기 좋은 시각</p><div class="big">${hm(T.leave)} 이후</div>`;
+  else h += `<h3 style="margin:0 0 4px">공연이 끝나면 1시간 넘게 붐벼요</h3>`;
+  h += `<p>큰 공연이 끝나면 20~40분 뒤에 가장 붐벼요. 평소 같은 시각의 약 10배예요. 70분 뒤에는 절반, 90분 뒤에는 3분의 1로 줄어요. 엘리베이터와 출구 앞 줄도 이때 가장 길어요.</p>`;
+  h += `<div class="note info">${I.info}<span>오래 기다리기 어렵다면 <b>공연이 끝나기 직전에 먼저 나서는 것</b>도 방법이에요. 끝나기 10분 전은 가장 붐빌 때의 3분의 1 정도예요.</span></div>`;
+  if (T.leave && (T.leave.getHours() >= 23 || T.leave.getHours() < 4)) h += `<div class="note">${I.info}<span>나서는 시각이 늦어요. 출발 전에 지하철 막차 시간을 꼭 확인하세요.</span></div>`;
+  h += `<div class="bars" role="img" aria-label="공연 종료 전후 10분 단위 출차 대수. 종료 20분 뒤 ${mx}대로 가장 많고, 70분 뒤 절반, 90분 뒤 3분의 1로 줄어요.">${A.min.map((o, i) => {
     const lab = T.end ? hm(addMin(T.end, o)) : (o === 0 ? '종료' : (o > 0 ? '+' : '') + o + '분');
-    const hot = o >= 0 && A.event[i] > A.weekday[i] * 1.5;
-    return `<span class="t ${o === 0 ? 'end' : ''}">${lab}</span><div class="track"><div class="b ${hot ? 'hot' : ''}" style="width:${A.event[i]/mx*100}%"></div><div class="w" style="left:${A.weekday[i]/mx*100}%"></div></div><span class="n">${A.event[i]}</span>`;
+    const hot = o >= 0 && A.event[i] >= mx / 2;
+    return `<span class="t ${o === 0 ? 'end' : ''}">${lab}</span><div class="track"><div class="b ${hot ? 'hot' : ''}" style="width:${A.event[i]/mx*100}%"></div><div class="w" style="left:${A.base[i]/mx*100}%"></div></div><span class="n">${A.event[i]}</span>`;
   }).join('')}</div>
-  <div class="legend"><span><i style="background:#d9480f"></i>평소의 1.5배 이상</span><span><i style="background:var(--blue)"></i>공연일 10분 출차(대)</span><span><i style="background:var(--ink);opacity:.55;width:3px"></i>평일 같은 시간</span></div>
-  <p class="meta">2024년 7월 공원 입출차 21만 건 중 공연이 있던 4일을, 출차가 몰리기 시작한 시점을 공연 종료로 보고 맞춰 평균했어요.</p>
+  <div class="legend"><span><i style="background:#d9480f"></i>가장 붐빌 때의 절반 이상</span><span><i style="background:var(--blue)"></i>공연일 10분 출차(대)</span><span><i style="background:var(--ink);opacity:.55;width:3px"></i>공연 없는 날 같은 시각</span></div>
+  <p class="meta">2025년 올림픽공원 주차장 입출차 약 240만 건 중 관객 8천 명 이상 공연일 77일을 분석했어요. 출차가 몰리기 시작한 시점을 공연 종료로 맞추고, 날마다 값의 가운데 값(중앙값)을 보여 줘요.</p>
   <ol class="steps" style="margin-top:12px">
    ${stepHTML('1', '기다리는 동안', '<p>공연장 근처 화장실을 먼저 들르고, 출구 쪽 혼잡이 줄 때까지 실내에서 쉬세요.</p>')}
-   ${stepHTML('2', '돌아가는 길', st.way === 'subway' ? `<p>올 때와 같은 <span class="exit">${exitsFor(venue())[0].e.no}</span>번 출구 엘리베이터를 이용하세요.</p>` : '<p>출차가 줄어드는 종료 50분 뒤부터 주차장을 나서면 기다림이 짧아요.</p>')}
+   ${stepHTML('2', '돌아가는 길', st.way === 'subway' ? `<p>올 때와 같은 <span class="exit">${exitsFor(v)[0].e.no}</span>번 출구 엘리베이터를 이용하세요.</p>` : `<p>공연이 끝나면 출차의 약 ${A.gates['동2문']}%가 동2문, ${A.gates['북2문']}%가 북2문, ${A.gates['남2문']}%가 남2문으로 몰려요.${v && v.gate ? ` 이 공연장 주차장은 <b>${esc(v.gate)}</b> 쪽이에요.` : ''} 종료 70분 뒤부터 나서면 기다림이 짧아요.</p>`)}
   </ol>`;
   $('#pane-after').innerHTML = h;
   markSpeaking();
@@ -406,7 +409,7 @@ $('#sources').innerHTML = `<ul>
 <li><b>서울교통공사</b>: 교통약자이용정보 API(엘리베이터 실시간 가동·안전발판), 엘리베이터 설치현황, 9호선 2·3단계 엘리베이터 설치현황, 역사 장애인화장실정보, 수유실현황, 전동휠체어 급속충전기 운영 정보</li>
 <li><b>국민체육진흥공단</b>: 올림픽공원 편의시설 정보(화장실·매점 위치, 2021)</li>
 <li>올림픽공원 홈페이지: 공연장별 주차장, 안내센터 휠체어 대여, 휠체어 진입로 · 지도와 보행로: OpenStreetMap</li></ul>
-<p><b>한계</b>: 공원 안 경사로 기울기·턱·장애인 화장실 위치는 공개 데이터가 없어요. 보행로는 OpenStreetMap에서 계단으로 표시된 길만 피한 것이라 현장과 다를 수 있어요. 공연 종료 시각은 공식 소요시간이 없으면 150분으로 추정해요.</p>`;
+<p><b>한계</b>: 공원 안 경사로 기울기·턱·장애인 화장실 위치는 공개 데이터가 없어요. 보행로는 OpenStreetMap에서 계단으로 표시된 길만 피한 것이라 현장과 다를 수 있어요. 공연 종료 시각은 공식 소요시간이 없으면 같은 출연자의 지난 공연이나 공연장의 보통 소요시간(공연정보 API)으로 추정해요. 공연 뒤 혼잡은 주차장 출차 기록이라 걸어서 나가는 사람의 흐름과는 조금 다를 수 있어요.</p>`;
 
 // ---------- 시작 ----------
 renderShows(); render(); setTab(location.hash.slice(1) || 'route'); st.started = true;

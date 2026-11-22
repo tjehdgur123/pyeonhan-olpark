@@ -21,7 +21,7 @@ const I = {
 
 // ---------- 글자 크기 (보통 16px · 크게 20px · 아주 크게 24px) ----------
 let fsLevel = 0;
-function setFs(n) { fsLevel = +n || 0; const r = document.documentElement; r.classList.remove('fs1', 'fs2'); if (fsLevel) r.classList.add('fs' + fsLevel); const b = document.getElementById('bigBtn'); if (b) { const n = ['보통', '크게', '아주 크게'][fsLevel]; b.textContent = '글자 크기 ' + n; b.setAttribute('aria-label', `글자 크기 바꾸기, 지금 ${n}`); } }
+function setFs(n) { fsLevel = +n || 0; const r = document.documentElement; r.classList.remove('fs1', 'fs2'); if (fsLevel) r.classList.add('fs' + fsLevel); const b = document.getElementById('bigBtn'); if (b) { const n = ['보통', '크게', '아주 크게'][fsLevel]; b.textContent = '글자 크기 ' + n; } }
 // ---------- 상태 ----------
 const MODES = [{id:'wheel', label:'휠체어', speed:55, icon:I.wheel}, {id:'stroller', label:'유아차', speed:60, icon:I.stroller}, {id:'slow', label:'걷기 힘듦', speed:40, icon:I.slow}];
 const WAYS = [{id:'subway', label:'지하철', icon:I.train}, {id:'car', label:'자동차', icon:I.car}];
@@ -30,6 +30,9 @@ const live = {parking:null, elev:null, ramp:null};
 try { const s = JSON.parse(localStorage.getItem('pyeonhan') || '{}'); if (s.mode) st.mode = s.mode; if (s.way) st.way = s.way; if (s.fs) setFs(s.fs); else if (s.big) setFs(1); } catch(e) {}
 const save = () => { try { localStorage.setItem('pyeonhan', JSON.stringify({mode:st.mode, way:st.way, fs:fsLevel})); } catch(e) {} };
 
+// ---------- 색 대비: 노선색 위 글자는 대비 4.5 이상인 색으로 ----------
+const lum = hex => { const c = hex.replace('#','').match(/../g).map(x => { const v = parseInt(x, 16) / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126*c[0] + 0.7152*c[1] + 0.0722*c[2]; };
+const onColor = hex => (1.05 / (lum(hex) + 0.05)) >= 4.5 ? '#fff' : '#111';
 // ---------- 계산 ----------
 const rad = d => d * Math.PI / 180;
 const dist = (a, b) => { const dl = rad(b[0]-a[0]), dn = rad(b[1]-a[1]); const h = Math.sin(dl/2)**2 + Math.cos(rad(a[0]))*Math.cos(rad(b[0]))*Math.sin(dn/2)**2; return 2*6371000*Math.asin(Math.sqrt(h)); };
@@ -76,7 +79,7 @@ function speakable(el) {
 function speakBar(pane) {
   if (!SPEECH) return '';
   const on = sp.on && sp.pane === pane;
-  return `<div class="speak" role="group" aria-label="음성 안내"><button class="sayall ${on ? 'on' : ''}" data-sayall="${pane}" aria-pressed="${on}">${on ? I.stop + ' 그만 듣기' : I.spk + (pane === 'route' ? ' 가는 길 소리로 듣기' : ' 공연 후 안내 듣기')}</button><button class="rate" data-rate aria-label="말하기 속도">${sp.rate < 1 ? '천천히' : '보통 속도'}</button></div>`;
+  return `<div class="speak" role="group" aria-label="음성 안내"><button class="sayall ${on ? 'on' : ''}" data-sayall="${pane}" aria-pressed="${on}">${on ? I.stop + ' 그만 듣기' : I.spk + (pane === 'route' ? ' 가는 길 소리로 듣기' : ' 공연 후 안내 듣기')}</button><button class="rate" data-rate>말하기 속도: ${sp.rate < 1 ? '천천히' : '보통'}</button></div>`;
 }
 function stopSpeak() { if (!SPEECH) return; sp.on = false; sp.idx = -1; sp.queue = []; speechSynthesis.cancel(); markSpeaking(); refreshBars(); }
 function refreshBars() { document.querySelectorAll('.speak').forEach(b => { const p = b.querySelector('[data-sayall]').dataset.sayall; b.outerHTML = speakBar(p); }); }
@@ -167,8 +170,15 @@ function directions(pts, v, fromLabel) {
 // ---------- 공연 ----------
 const now = new Date();
 let shows = [], evSource = 'snapshot';
+// 공연 시간: 공식(주차 예상 이용률 페이지) > 과거 같은 출연자 공연(공연정보 API) > 공연장 중앙값
+function estimateDur(e) {
+  if (e.durOfficial) return {dur:e.dur, src:'official'};
+  const T = (e.title || '').toUpperCase().replace(/[^0-9A-Z가-힣]+/g, ' ').split(' ');
+  for (const [w, m] of Object.entries(D.dur.artist)) if (T.some(t => t === w || (w.length >= 3 && t.startsWith(w)))) return {dur:m, src:'past'};
+  return {dur:D.dur.venue[e.venue] || 120, src:'venue'};
+}
 function setShows(events) {
-  const all = events.flatMap(e => e.shows.map(s => ({...e, at:new Date(s)})));
+  const all = events.flatMap(e => { const d = estimateDur(e); return e.shows.map(s => ({...e, dur:d.dur, durSrc:d.src, at:new Date(s)})); });
   const up = all.filter(s => s.at > addMin(now, -180));
   shows = (up.length ? up : all).sort((a,b) => a.at - b.at).slice(0, 16);
   if (st.show) { const m = shows.find(s => s.title === st.show.title && +s.at === +st.show.at); if (m) st.show = m; }
@@ -190,9 +200,9 @@ function renderTrip() {
   $('#times').innerHTML = s ? [
     [st.way === 'subway' ? '역 도착 권장' : '주차장 도착 권장', hm(T.arrive), 'hi'],
     ['공연 시작', hm(s.at), ''],
-    [s.durOfficial ? '끝나는 시각' : '끝나는 시각(추정)', hm(T.end), ''],
+    [s.durSrc === 'official' ? '끝나는 시각' : '끝나는 시각(추정)', hm(T.end), ''],
     ['혼잡 피해 나서기', hm(T.leave) + ' 이후', 'hi']
-  ].map(([a,b,c]) => `<div class="${c}"><small>${a}</small><b>${b}</b></div>`).join('') + (s.durOfficial ? '' : `<div class="note">끝나는 시각은 공연 시간을 ${s.dur}분으로 가정한 추정이에요.</div>`)
+  ].map(([a,b,c]) => `<div class="${c}"><small>${a}</small><b>${b}</b></div>`).join('') + (s.durSrc === 'official' ? '' : `<div class="note">끝나는 시각은 ${s.durSrc === 'past' ? '같은 출연자의 지난 공연 소요시간' : '이 공연장 공연들의 보통 소요시간'}(${s.dur}분)으로 추정했어요. 공연정보 API 기준.</div>`)
   : `<div style="grid-column:1/-1"><small>공연을 고르면 도착·출발 권장 시각을 계산해 드려요.</small></div>`;
 }
 function timesFor() {
@@ -221,7 +231,7 @@ function renderRoute() {
   if (st.way === 'subway') {
     const ex = exitsFor(v), best = ex[0], S = best.s;
     h += stepHTML('1', '출발 전 확인', elevNote(S) + `<dl class="facts"><dt>${I.phone} 역 전화</dt><dd><a href="tel:${S.tel.replace(/-/g,'')}">${S.tel}</a> (${esc(S.name)} ${esc(S.line)})</dd>${S.ramp != null ? `<dt>안전발판</dt><dd>${S.ramp ? '있음 · 승강장 틈이 걱정되면 역에 요청' : '보유 정보 없음'}</dd>` : ''}</dl>`);
-    h += stepHTML('2', `<span class="pill" style="background:${S.color}">${S.line}</span> ${esc(S.name)}에서 내리기`, `<p>엘리베이터와 가까운 칸: <b>${esc(S.board)}</b></p>`);
+    h += stepHTML('2', `<span class="pill" style="background:${S.color};color:${onColor(S.color)}">${S.line}</span> ${esc(S.name)}에서 내리기`, `<p>엘리베이터와 가까운 칸: <b>${esc(S.board)}</b></p>`);
     h += stepHTML('3', `<span class="exit">${best.e.no}</span>번 출구 엘리베이터로 지상까지`, `<p class="meta">${esc(S.ground)}</p>${S.warn ? `<div class="note warn">${I.warn}<span>${esc(S.warn)}</span></div>` : ''}`, true);
     h += stepHTML('4', `${esc(v.name)}까지 약 ${mins(best.p.m)}분`, `<p>${best.p.real ? `계단을 피한 길로 약 <b>${Math.round(best.p.m)}m</b> (${m.label} 기준)` : `약 ${Math.round(best.p.m)}m 추정 (직선거리 기반, ${m.label} 기준)`}</p>${best.p.steps ? `<div class="note warn">${I.warn}<span>계단 없는 길을 찾지 못해 일부 구간에 계단이 있을 수 있어요.</span></div>` : ''}${best.p.real ? `<ol class="turns">${directions(best.p.pts, v, `${best.s.name} ${best.e.no}번 출구`).map(t => `<li>${t}</li>`).join('')}</ol><p class="meta">방향과 거리는 OpenStreetMap 보행로 기준 추정이에요. 현장 안내판을 함께 확인하세요.</p>` : ''}`);
   } else {
@@ -245,7 +255,7 @@ function renderRoute() {
   if (st.way === 'subway') {
     const seen = new Set([exitsFor(v)[0].s.id]);
     const alts = exitsFor(v).filter(x => !seen.has(x.s.id) && seen.add(x.s.id)).slice(0, 3);
-    h += `<details class="alt"><summary>다른 역으로 가기 (${alts.length})</summary>${alts.map(x => `<div class="altrow"><p style="margin:0"><span class="pill" style="background:${x.s.color}">${x.s.line}</span> <b>${esc(x.s.name)}</b> <span class="exit">${x.e.no}</span>번 출구 → 약 ${mins(x.p.m)}분</p>${x.s.warn ? `<p class="meta">${esc(x.s.warn)}</p>` : ''}${elevNote(x.s)}</div>`).join('')}</details>`;
+    h += `<details class="alt"><summary>다른 역으로 가기 (${alts.length})</summary>${alts.map(x => `<div class="altrow"><p style="margin:0"><span class="pill" style="background:${x.s.color};color:${onColor(x.s.color)}">${x.s.line}</span> <b>${esc(x.s.name)}</b> <span class="exit">${x.e.no}</span>번 출구 → 약 ${mins(x.p.m)}분</p>${x.s.warn ? `<p class="meta">${esc(x.s.warn)}</p>` : ''}${elevNote(x.s)}</div>`).join('')}</details>`;
   }
   $('#pane-route').innerHTML = h;
   markSpeaking();

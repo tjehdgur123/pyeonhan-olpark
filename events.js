@@ -45,7 +45,7 @@ window.loadLiveEvents = async function (venues) {
       if (t) out.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(t[0]).padStart(2, '0')}:${String(t[1]).padStart(2, '0')}`);
     }
     const venue = venueOf(it.place);
-    if (venue && out.length) shows.push({title: it.title, venue, shows: out, dur: durs[it.title] || 150, durOfficial: !!durs[it.title], link: it.href});
+    if (venue && out.length) shows.push({title: it.title, venue, shows: out, dur: durs[it.title] || 0, durOfficial: !!durs[it.title], link: it.href});
   }
   return shows;
 };

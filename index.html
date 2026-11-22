@@ -23,6 +23,7 @@
 :root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
 *{box-sizing:border-box;min-width:0}
 [hidden]{display:none!important}
+.skip{position:absolute;left:8px;top:-60px;z-index:100;background:var(--yel);color:#111;padding:10px 14px;border-radius:10px;font-weight:700}.skip:focus{top:8px}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:1rem/1.55 "IBM Plex Sans KR",system-ui,sans-serif;overflow-x:clip}
 html.fs1{font-size:20px}@media(max-width:480px){html.fs1 .bar small,html.fs2 .bar small{display:none}}@media(max-width:420px){.bar small{display:none}}html.fs2{font-size:24px}
@@ -179,17 +180,18 @@ footer li{margin:4px 0}
 </style>
 </head>
 <body>
+<a class="skip" href="#trip">본문 바로가기</a>
 <header class="bar"><div class="in">
  <span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24"><circle cx="12" cy="4.2" r="2.2" fill="#0b4fa3"/><path d="M11 7.5v6h5l2.5 5" stroke="#0b4fa3" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.6 10.2a6 6 0 1 0 7.9 8.2" stroke="#0b4fa3" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg></span>
  <h1>편한길 올팍<small>휠체어·유아차로 올림픽공원 공연 가는 길</small></h1>
  <span class="sp"></span>
- <button class="ghost" id="bigBtn" aria-label="글자 크기 바꾸기, 지금 보통">글자 크기 보통</button>
+ <button class="ghost" id="bigBtn" title="누를 때마다 글자 크기가 바뀌어요">글자 크기 보통</button>
 </div></header>
 
 <main class="shell">
  <div class="cols">
   <div class="left" style="display:grid;gap:16px">
-   <section class="card trip" id="trip" aria-label="내 여정"></section>
+   <section class="card trip" id="trip" aria-label="내 여정" tabindex="-1"></section>
    <section class="card times" id="times" aria-live="polite" aria-label="시간 요약"></section>
    <div class="tabs" role="tablist" aria-label="안내 보기">
     <button role="tab" id="t-route" aria-controls="pane-route" data-tab="route">가는 길</button>
@@ -215,11 +217,11 @@ footer li{margin:4px 0}
 <footer><details><summary>데이터 출처와 한계</summary><div id="sources"></div></details>
 <p>편한길 올팍 · 2026년도 한국체육산업개발(주) 공공데이터 활용 경진대회 응모작 · 지도 © OpenStreetMap contributors (ODbL)</p></footer>
 
-<nav class="bottom" role="tablist" aria-label="안내 보기">
- <button role="tab" data-tab="route"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M6 17V9a3 3 0 0 1 3-3h4M18 7v8a3 3 0 0 1-3 3h-4"/></svg>가는 길</button>
- <button role="tab" data-tab="map"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14"/></svg>지도</button>
- <button role="tab" data-tab="after"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>공연 후</button>
-</nav>
+<nav class="bottom" aria-label="안내 보기"><div role="tablist" style="display:contents">
+ <button role="tab" data-tab="route" aria-controls="pane-route"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M6 17V9a3 3 0 0 1 3-3h4M18 7v8a3 3 0 0 1-3 3h-4"/></svg>가는 길</button>
+ <button role="tab" data-tab="map" aria-controls="pane-map"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14"/></svg>지도</button>
+ <button role="tab" data-tab="after" aria-controls="pane-after"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>공연 후</button>
+</div></nav>
 
 <dialog id="sheet" aria-labelledby="sheetTitle"><div class="sheet">
  <header><h2 id="sheetTitle">어떤 공연에 가세요?</h2><button class="x" id="sheetX" aria-label="닫기">×</button></header>
@@ -229,9 +231,9 @@ footer li{margin:4px 0}
  <select id="venueSel" aria-label="공연장 선택"></select>
 </div></dialog>
 
-<script src="data.js?v=20261123g"></script>
-<script src="config.js?v=20261123g"></script>
-<script src="events.js?v=20261123g"></script>
-<script src="app.js?v=20261123g"></script>
+<script src="data.js?v=20261123h"></script>
+<script src="config.js?v=20261123h"></script>
+<script src="events.js?v=20261123h"></script>
+<script src="app.js?v=20261123h"></script>
 </body>
 </html>

@@ -563,6 +563,77 @@ function lastTrainHTML(T, v) {
   ${others.length ? `<details><summary>다른 역·노선 막차 보기</summary>${others.map(o => o.html).join('')}</details>` : ''}
   <p class="meta">표의 '가는 곳'까지 가거나 그 전에 내리면 그 열차를 탈 수 있어요. 나설 시각은 걷는 시간에 엘리베이터·개찰구 여유 10분을 더해 계산했어요. 서울교통공사 시간표(${D.lastTrain.asof} 기준)이며, 음력 명절·대체공휴일은 역에 확인하세요.</p></div>`;
 }
+// ---------- 집(출발역)까지 막차: 국토교통부(TAGO) 역별 시간표로 환승역마다 거꾸로 계산 ----------
+const XFER_MIN = 10;   // 갈아타기: 엘리베이터로 승강장을 옮기는 시간
+const TT = {};         // '역|요일' → {lines} | 'loading' | 'fail'
+const bare = n => String(n || '').split('(')[0].replace(/역$/, '').trim();
+const lineKey = r => String(r || '').replace(/호선$/, '').replace(/선$/, '').replace(/[·\s]/g, '');
+const ttDay = d => dayKind(d) === 'wd' ? '01' : d.getDay() === 6 ? '02' : '03';
+const ttMin = t => { t = String(t || ''); if (!/^\d{6}$/.test(t)) return null; const h = +t.slice(0, 2), m = +t.slice(2, 4) + +t.slice(4, 6) / 60; return (h < 4 ? h + 24 : h) * 60 + m; };
+function loadTT(name, day) {
+  const k = bare(name) + '|' + day; if (TT[k]) return;
+  try { const c = JSON.parse(localStorage.getItem('pyeonhanTT:' + k) || 'null'); if (c && Date.now() - c.t < 432e5) { TT[k] = c.d; return; } } catch(e) {}
+  if (!C.LIVE_API) { TT[k] = 'fail'; return; }
+  TT[k] = 'loading';
+  fetch(`${C.LIVE_API}/tt?st=${encodeURIComponent(bare(name))}&day=${day}`).then(r => r.ok ? r.json() : Promise.reject()).then(j => {
+    TT[k] = j && j.lines && j.lines.length ? j : 'fail';
+    if (TT[k] !== 'fail') try { localStorage.setItem('pyeonhanTT:' + k, JSON.stringify({t:Date.now(), d:TT[k]})); } catch(e) {}
+  }).catch(() => { TT[k] = 'fail'; }).finally(() => { if (st.tab === 'after' || document.querySelector('#pane-after')) renderAfter(); });
+}
+// 그 노선에서 이름(괄호 뗀 것)으로 그래프 역 이름 찾기
+function gName(ref, n) { const b = bare(n); for (const s of metroGraph().lines[ref] || []) for (const x of s) if (bare(x) === b) return x; return null; }
+// 한 구간(B→A)을 타는 열차들: B 출발 시각, A 도착 시각(같은 종착역 열차를 A 시간표에서 찾아 맞춤)
+function legTrains(ref, B, A, n, day) {
+  const tb = TT[bare(B) + '|' + day], ta = TT[bare(A) + '|' + day];
+  if (!tb || !ta || tb === 'loading' || ta === 'loading') return 'loading';
+  if (tb === 'fail' || ta === 'fail') return null;
+  const lb = tb.lines.find(l => lineKey(l.route) === lineKey(ref)), la = ta.lines.find(l => lineKey(l.route) === lineKey(ref));
+  if (!lb || !la) return null;
+  const gB = gName(ref, B), gA = gName(ref, A); if (!gB || !gA) return null;
+  const toward = {}, goes = T => { if (T in toward) return toward[T]; const g = gName(ref, T); if (!g) return toward[T] = false; if (bare(g) === bare(gA)) return toward[T] = true; const p = linePath(ref, gB, g); return toward[T] = !!(p && p.includes(gA)); };
+  const atA = [...la.dirs.U, ...la.dirs.D].map(([d, a, to]) => ({t:ttMin(a) ?? ttMin(d), to:bare(to)})).filter(x => x.t != null);
+  const out = [];
+  for (const [d, a, to] of [...lb.dirs.U, ...lb.dirs.D]) {
+    const dep = ttMin(d), T = bare(to); if (dep == null || !goes(T)) continue;
+    const hit = atA.filter(x => x.to === T && x.t >= dep + n * 1.0 && x.t <= dep + n * 4 + 5).sort((p, q) => p.t - q.t)[0];
+    out.push({dep, arr:hit ? hit.t : dep + n * RIDE, est:!hit, to:T, B, A, ref});
+  }
+  return out.length ? out.sort((p, q) => p.dep - q.dep) : null;
+}
+function homeChain(T, x) {
+  const R = pickedRoute(); if (!R || R[0].x.s.id !== x.s.id) return null;
+  const day = ttDay(T.start), H = [...R[0].legs].reverse().map(l => { const s = [...l.st].reverse(); return {ref:l.ref, B:s[0], A:s[s.length - 1], n:s.length - 1}; });
+  H.forEach(h => { loadTT(h.B, day); loadTT(h.A, day); });
+  const L = H.map(h => legTrains(h.ref, h.B, h.A, h.n, day));
+  if (L.includes('loading')) return {state:'loading'};
+  if (L.includes(null)) return {state:'nodata'};
+  const plan = []; let need = Infinity;
+  for (let i = H.length - 1; i >= 0; i--) {
+    const c = L[i].filter(t => t.arr <= need); if (!c.length) return {state:'none', at:H[i]};
+    const pick = c.reduce((a, b) => b.dep > a.dep ? b : a); plan[i] = pick; need = pick.dep - XFER_MIN;
+  }
+  const base = new Date(T.start); base.setHours(0, 0, 0, 0);
+  const D = m => new Date(base.getTime() + m * 60000);
+  const by = D(plan[0].dep - (mins(x.p.m) + 10));
+  return {state:'ok', plan:plan.map(p => ({...p, depD:D(p.dep), arrD:D(p.arr)})), by, arrive:D(plan[plan.length - 1].arr), miss:T.leave > by, early:T.end && by < T.end};
+}
+function chainRow(T, v, x, full) {
+  const C2 = homeChain(T, x), to = esc(st.from) + '역';
+  if (!C2) return null;
+  const tail = full ? `<details class="more"><summary>공연장 근처 역 막차 시간표</summary>${full}</details>` : '';
+  const sub = `${to} 도착 기준`;
+  if (C2.state === 'loading') return row(I.train, `${to}까지 막차 계산 중…`, sub, chip('unk', '확인 중'), `<p class="meta">갈아타는 역의 막차 시간표를 불러오고 있어요.</p>` + tail);
+  if (C2.state === 'nodata') return null;
+  if (C2.state === 'none') return row(I.train, `오늘은 지하철로 ${to}까지 못 가요`, sub, chip('bad', '막차 없음'),
+    `<p>${esc(C2.at.B)}역에서 ${esc(lineName(C2.at.ref))}으로 갈아탈 막차가 없어요. 장애인콜택시(1588-4388)를 미리 생각해 두세요.</p>` + tail);
+  const P = C2.plan;
+  const steps = P.map((p, i) => `<li><b>${esc(p.B)}</b> ${esc(lineName(p.ref))} ${esc(p.to)}행 <b>${hm(p.depD)}</b> 출발 → ${esc(p.A)} ${hm(p.arrD)}${p.est ? '쯤' : ''} 도착${i < P.length - 1 ? ` <span class="meta">(갈아타기 ${Math.round(P[i + 1].dep - p.arr)}분)</span>` : ''}</li>`).join('');
+  const warn = C2.early ? `<div class="note warn">${I.warn}<span>공연이 끝나기 전, <b>${hm(C2.by)}</b>에 나서야 이 막차를 탈 수 있어요. 끝까지 보려면 장애인콜택시(1588-4388)를 미리 생각해 두세요.</span></div>`
+    : C2.miss ? `<div class="note warn">${I.warn}<span>혼잡을 피해 ${hm(T.leave)}까지 기다리면 이 막차를 놓쳐요. <b>${hm(C2.by)}</b> 전에 나서세요.</span></div>` : '';
+  return row(I.train, `${to} ${hm(C2.arrive)} 도착 막차`, `${hm(C2.by)}까지 공연장에서 나서기`, C2.early || C2.miss ? chip('bad', '놓칠 수 있음') : chip('ok', '여유'),
+    `${warn}<p>공연장에서 <b>${hm(C2.by)}</b>까지 나서면 ${to}에 <b>${hm(C2.arrive)}</b>쯤 도착해요.</p><ol class="chain">${steps}</ol><p class="meta">갈아타는 시간은 엘리베이터 이동을 생각해 ${XFER_MIN}분 넘게 잡았고, 공연장에서 역 승강장까지는 걷는 시간에 10분을 더했어요. 국토교통부(TAGO) 역별 시간표 기준이라 실제 운행과 조금 다를 수 있어요.</p>` + tail);
+}
+
 // 출발역 방향 막차: 도착 노선을 거꾸로 타고 환승역(없으면 출발역)까지 가는 열차 중 가장 늦은 것
 function linePath(ref, a, b) {
   const adj = new Map(), add = (p, q) => (adj.get(p) || adj.set(p, []).get(p)).push(q);
@@ -595,9 +666,10 @@ function renderAfter() {
   h += `<div class="rhead"><div class="big">${T.end ? `${hm(T.leave)} 이후 나서기` : '끝나고 70분 뒤 나서기'}</div><div class="meta">${T.end ? `공연 끝 ${hm(T.end)} · 가장 붐빌 때 ${hm(addMin(T.end, 20))}~${hm(addMin(T.end, 40))}` : '끝나고 20~40분 뒤가 가장 붐벼요'}</div>${miniChart(T)}</div>`;
   h += '<ol class="steps rows">';
   if (T.end && st.way === 'subway') {
-    const x = mainExit(v), full = lastTrainHTML(T, v), H = homeTrain(T, x);
-    if (H) h += row(I.train, `막차 ${esc(H.to)}행 ${hm(H.at)}`, '출발역 기준', H.miss ? chip('bad', '놓칠 수 있음') : chip('ok', '여유'),
-      `<p>${esc(st.from)}역으로 가려면 ${esc(x.s.name)} ${esc(lineName(H.ref))} <b>${esc(H.to)}행 ${hm(H.at)}</b> 열차가 막차예요. 공연장에서 <b>${hm(H.by)}</b>까지 나서면 탈 수 있어요.</p>${H.via ? `<p class="meta">갈아타는 ${esc(H.via)}역의 막차는 역에서 한 번 더 확인하세요.</p>` : ''}` + full);
+    const x = mainExit(v), full = lastTrainHTML(T, v), CR = st.from ? chainRow(T, v, x, full) : null, H = CR ? null : homeTrain(T, x);
+    if (CR) h += CR;
+    else if (H) h += row(I.train, `막차 ${esc(H.to)}행 ${hm(H.at)}`, H.via ? `${esc(H.via)}역까지만 확인됨` : `${esc(st.from)}역 도착 기준`, H.miss ? chip('bad', '놓칠 수 있음') : H.via ? chip('unk', '환승역 확인') : chip('ok', '여유'),
+      `<p>${esc(st.from)}역으로 가려면 ${esc(x.s.name)} ${esc(lineName(H.ref))} <b>${esc(H.to)}행 ${hm(H.at)}</b> 열차가 막차예요. 공연장에서 <b>${hm(H.by)}</b>까지 나서면 탈 수 있어요.</p>${H.via ? `<div class="note warn">${I.info}<span>이 열차는 갈아타는 ${esc(H.via)}역까지만 확인한 거예요. ${esc(st.from)}역까지 가는 막차는 역에서 꼭 확인하세요.</span></div>` : ''}` + full);
     else if (full) h += row(I.train, '막차 확인', '', '', full);
   }
   h += row(I.info, '오래 못 기다린다면', '끝나기 10분 전에 먼저 나서기', '', `<p>끝나기 10분 전은 가장 붐빌 때의 3분의 1 정도예요. 엘리베이터와 출구 앞 줄도 이때 가장 짧아요.</p>`);

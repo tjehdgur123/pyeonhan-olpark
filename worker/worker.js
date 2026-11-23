@@ -5,6 +5,7 @@
 //    /helpers    교통약자 도우미 운영 현황 (6시간 재사용)
 //    /lifts      휠체어리프트 (6시간)
 //    /safeplfm   안전발판 보유 현황 (6시간)
+//    /tt?st=역명&day=01|02|03  국토교통부(TAGO) 지하철 역별 시간표, 밤 9시~새벽 막차만 (12시간 재사용)
 // 2) 현장 제보 (KV 바인딩 REPORTS 필요)
 //    GET  /reports            최근 30일 제보 목록
 //    POST /reports            {kind, lat, lng, text?} 제보 남기기 (IP당 하루 5건)
@@ -103,6 +104,41 @@ async function reports(req, env, parts) {
   return json({error: 'not found'}, 404);
 }
 
+// 막차 계산용 역 시간표: 역 이름으로 찾은 모든 노선의 상·하행 시간표 중 밤 9시 이후 열차만
+const TAGO = 'https://apis.data.go.kr/1613000/SubwayInfo/';
+const arr = x => x == null ? [] : Array.isArray(x) ? x : [x];
+async function tago(env, op, q) {
+  const r = await fetch(`${TAGO}${op}?serviceKey=${env.DATA_GO_KR_KEY}&_type=json&pageNo=1&numOfRows=999&${q}`);
+  const t = await r.text();
+  try { return JSON.parse(t); } catch (e) { throw new Error(t.slice(0, 200)); }
+}
+async function timetable(url, env) {
+  const st = (url.searchParams.get('st') || '').replace(/역$/, '').trim().slice(0, 20), day = /^0[123]$/.test(url.searchParams.get('day')) ? url.searchParams.get('day') : '01';
+  if (!st) return json({error: 'st'}, 400);
+  const raw = url.searchParams.get('raw') === '1', key = 'tt' + st + day, m = memo[key];
+  if (!raw && m && Date.now() - m.t < 43200000) return new Response(m.body, {headers: {...H, 'Cache-Control': 'max-age=21600'}});
+  try {
+    const s = await tago(env, 'GetKwrdFndSubwaySttnList', 'subwayStationName=' + encodeURIComponent(st));
+    if (raw) return json({search: s});
+    const found = arr(s?.response?.body?.items?.item).filter(x => String(x.subwayStationName).split('(')[0].replace(/역$/, '') === st);
+    const lines = [];
+    for (const x of found.slice(0, 6)) {
+      const dirs = {};
+      for (const ud of ['U', 'D']) {
+        const j = await tago(env, 'GetSubwaySttnAcctoSchdulList', `subwayStationId=${x.subwayStationId}&dailyTypeCode=${day}&upDownTypeCode=${ud}`);
+        dirs[ud] = arr(j?.response?.body?.items?.item).map(y => [String(y.depTime || y.arrTime || ''), String(y.arrTime || ''), y.endSubwayStationNm || ''])
+          .filter(y => { const h = +y[0].padStart(6, '0').slice(0, 2); return h >= 21 || h < 4; });
+      }
+      lines.push({route: x.subwayRouteName, id: x.subwayStationId, dirs});
+    }
+    const body = JSON.stringify({st, day, lines});
+    if (lines.length) memo[key] = {t: Date.now(), body};
+    return new Response(body, {headers: {...H, 'Cache-Control': 'max-age=21600'}});
+  } catch (e) {
+    return json({error: 'upstream', detail: String(e.message || e).split(env.DATA_GO_KR_KEY || '@@').join('***').slice(0, 200)}, 502);
+  }
+}
+
 export default {
   async fetch(req, env) {
     if (req.method === 'OPTIONS') return new Response(null, {status: 204, headers: H});
@@ -110,6 +146,7 @@ export default {
     if (parts[0] === 'reports') {
       try { return await reports(req, env, parts); } catch (e) { return json({error: 'server'}, 500); }
     }
+    if (parts[0] === 'tt') return timetable(new URL(req.url), env);
     const name = parts[0] || '';
     const headers = {...H, 'Cache-Control': 'max-age=120'};
     const op = OPS[name];

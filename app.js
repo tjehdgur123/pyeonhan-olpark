@@ -13,6 +13,7 @@ const I = {
   slow: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="4" r="1.6" fill="currentColor"/><path d="M10 8l-2 6 3 2v5M10 8l3 4 3 1M18 11v10"/></svg>',
   train: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="3" width="14" height="13" rx="3"/><path d="M5 11h14M8 20l-2 2M16 20l2 2M9 16v.01M15 16v.01"/></svg>',
   car: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 16V11l2-5h10l2 5v5M3 16h18v3H3zM7 19v2M17 19v2M5 11h14"/></svg>',
+  share: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg>',
   swap: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 4v16M7 4 4 7M7 4l3 3M17 20V4M17 20l-3-3M17 20l3-3"/></svg>',
   spk: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4zM16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>',
   stop: '<svg class="i" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>',
@@ -28,11 +29,25 @@ const WAYS = [{id:'subway', label:'지하철', icon:I.train}, {id:'car', label:'
 const st = {show:null, venue:null, mode:'wheel', way:'subway', tab:'route', layers:{toilet:true, center:true, store:false, path:true}};
 const live = {parking:null, elev:null, ramp:null};
 try { const s = JSON.parse(localStorage.getItem('pyeonhan') || '{}'); if (s.mode) st.mode = s.mode; if (s.way) st.way = s.way; if (s.fs) setFs(s.fs); else if (s.big) setFs(1); } catch(e) {}
+// 공유 링크: ?v=공연장&t=시작시각&n=공연명&m=이동방법&w=교통수단
+const Q = new URLSearchParams(location.search), linkShow = (() => {
+  const v = Q.get('v'), t = Q.get('t'); if (!v) return null;
+  if (['wheel','stroller','slow'].includes(Q.get('m'))) st.mode = Q.get('m');
+  if (['subway','car'].includes(Q.get('w'))) st.way = Q.get('w');
+  if (!D.venues.some(x => x.id === v)) return null;
+  st.venue = v; const at = t ? new Date(t) : null;
+  return at && !isNaN(at) ? {title:(Q.get('n') || '').slice(0, 80), venue:v, at} : null;
+})();
+let linkOn = !!linkShow;
+const dropLink = () => { if (location.search) { linkOn = false; history.replaceState(null, '', location.pathname + location.hash); } };
 const save = () => { try { localStorage.setItem('pyeonhan', JSON.stringify({mode:st.mode, way:st.way, fs:fsLevel})); } catch(e) {} };
 
 // ---------- 색 대비: 노선색 위 글자는 대비 4.5 이상인 색으로 ----------
 const lum = hex => { const c = hex.replace('#','').match(/../g).map(x => { const v = parseInt(x, 16) / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126*c[0] + 0.7152*c[1] + 0.0722*c[2]; };
 const onColor = hex => (1.05 / (lum(hex) + 0.05)) >= 4.5 ? '#fff' : '#111';
+// 노선색 배지: 흰 글자와 4.5:1이 안 되면 노선색을 조금 어둡게
+const pillBg = hex => { let h = hex; for (let k = 0; k < 10 && 1.05 / (lum(h) + 0.05) < 4.6; k++) h = '#' + h.replace('#','').match(/../g).map(x => Math.round(parseInt(x, 16) * 0.92).toString(16).padStart(2, '0')).join(''); return h; };
+const pill = S => `<span class="pill" style="background:${pillBg(S.color)};color:#fff">${S.line}</span>`;
 // ---------- 계산 ----------
 const rad = d => d * Math.PI / 180;
 const dist = (a, b) => { const dl = rad(b[0]-a[0]), dn = rad(b[1]-a[1]); const h = Math.sin(dl/2)**2 + Math.cos(rad(a[0]))*Math.cos(rad(b[0]))*Math.sin(dn/2)**2; return 2*6371000*Math.asin(Math.sqrt(h)); };
@@ -70,6 +85,7 @@ function speakable(el) {
   let t = c.innerText.replace(/번번/g, '번');
   return t
     .replace(/\b0(\d{1,2})-(\d{3,4})-(\d{4})(~\d)?/g, (m, a, b, c2) => ['0' + a, b, c2].map(g => g.split('').join(' ')).join(', '))
+    .replace(/\b(1[56]\d{2})-(\d{4})\b/g, (m, a, b) => [a, b].map(g => g.split('').join(' ')).join(', '))
     .replace(/(\d{1,2}):(\d{2})\s*~\s*(\d{1,2}):(\d{2})/g, (m, a, b, c2, d) => `${+a}시${+b ? ' ' + +b + '분' : ''}부터 ${+c2}시${+d ? ' ' + +d + '분' : ''}까지`)
     .replace(/(\d{1,2}):(\d{2})/g, (m, a, b) => `${+a}시${+b ? ' ' + +b + '분' : ''}`)
     .replace(/\bB(\d)\b/g, '지하 $1층').replace(/\b(\d)F\b/g, '지상 $1층')
@@ -169,7 +185,7 @@ function directions(pts, v, fromLabel) {
 
 // ---------- 공연 ----------
 const now = new Date();
-let shows = [], evSource = 'snapshot';
+let shows = [], evSource = 'snapshot', evSavedAt = null;
 // 공연 시간: 공식(주차 예상 이용률 페이지) > 과거 같은 출연자 공연(공연정보 API) > 공연장 중앙값
 function estimateDur(e) {
   if (e.durOfficial) return {dur:e.dur, src:'official'};
@@ -182,6 +198,11 @@ function setShows(events) {
   const up = all.filter(s => s.at > addMin(now, -180));
   shows = (up.length ? up : all).sort((a,b) => a.at - b.at).slice(0, 16);
   if (st.show) { const m = shows.find(s => s.title === st.show.title && +s.at === +st.show.at); if (m) st.show = m; }
+  if (linkOn && (!st.show || st.show.fromLink)) {
+    const m = shows.find(s => s.venue === linkShow.venue && +s.at === +linkShow.at);
+    if (m) st.show = m;
+    else { const e = {title:linkShow.title || '공유받은 공연', venue:linkShow.venue}, d = estimateDur(e); st.show = {...e, at:linkShow.at, dur:d.dur, durSrc:d.src, fromLink:true}; }
+  }
 }
 setShows(D.events);
 const curShow = () => st.show && st.show.venue === st.venue ? st.show : null;
@@ -195,7 +216,7 @@ function renderTrip() {
     <div class="where">${I.pin} ${esc(v.name)}</div>
     <div class="seg" role="group" aria-label="이동 방법">${MODES.map(m => `<button data-mode="${m.id}" aria-pressed="${st.mode === m.id}">${m.icon}${m.label}</button>`).join('')}</div>
     <div class="seg" role="group" aria-label="교통수단">${WAYS.map(w => `<button data-way="${w.id}" aria-pressed="${st.way === w.id}">${w.icon}${w.label}</button>`).join('')}</div>
-    <button class="change" id="openSheet">${I.swap} 공연 바꾸기</button>`;
+    <div class="row2"><button class="change" id="openSheet">${I.swap} 공연 바꾸기</button><button class="change" id="shareBtn">${I.share} 일행에게 보내기</button></div>`;
   const T = timesFor();
   $('#times').innerHTML = s ? [
     [st.way === 'subway' ? '역 도착 권장' : '주차장 도착 권장', hm(T.arrive), 'hi'],
@@ -231,14 +252,14 @@ function renderRoute() {
   if (st.way === 'subway') {
     const ex = exitsFor(v), best = ex[0], S = best.s;
     h += stepHTML('1', '출발 전 확인', elevNote(S) + `<dl class="facts"><dt>${I.phone} 역 전화</dt><dd><a href="tel:${S.tel.replace(/-/g,'')}">${S.tel}</a> (${esc(S.name)} ${esc(S.line)})</dd>${S.ramp != null ? `<dt>안전발판</dt><dd>${S.ramp ? '있음 · 승강장 틈이 걱정되면 역에 요청' : '보유 정보 없음'}</dd>` : ''}</dl>`);
-    h += stepHTML('2', `<span class="pill" style="background:${S.color};color:${onColor(S.color)}">${S.line}</span> ${esc(S.name)}에서 내리기`, `<p>엘리베이터와 가까운 칸: <b>${esc(S.board)}</b></p>`);
+    h += stepHTML('2', `${pill(S)} ${esc(S.name)}에서 내리기`, `<p>엘리베이터와 가까운 칸: <b>${esc(S.board)}</b></p>`);
     h += stepHTML('3', `<span class="exit">${best.e.no}</span>번 출구 엘리베이터로 지상까지`, `<p class="meta">${esc(S.ground)}</p>${S.warn ? `<div class="note warn">${I.warn}<span>${esc(S.warn)}</span></div>` : ''}`, true);
     h += stepHTML('4', `${esc(v.name)}까지 약 ${mins(best.p.m)}분`, `<p>${best.p.real ? `계단을 피한 길로 약 <b>${Math.round(best.p.m)}m</b> (${m.label} 기준)` : `약 ${Math.round(best.p.m)}m 추정 (직선거리 기반, ${m.label} 기준)`}</p>${best.p.steps ? `<div class="note warn">${I.warn}<span>계단 없는 길을 찾지 못해 일부 구간에 계단이 있을 수 있어요.</span></div>` : ''}${best.p.real ? `<ol class="turns">${directions(best.p.pts, v, `${best.s.name} ${best.e.no}번 출구`).map(t => `<li>${t}</li>`).join('')}</ol><p class="meta">방향과 거리는 OpenStreetMap 보행로 기준 추정이에요. 현장 안내판을 함께 확인하세요.</p>` : ''}`);
   } else {
     const ps = D.pstats.full_days_by_lot, lot = v.parking || '가까운 공연장 주차장', lots = (v.parking || '').match(/P\d+[AB]?/g) || [];
     const lp = live.parking;
     h += stepHTML('1', '출발 전 확인', `${lp ? `<div class="live"><b>${lp.p.toLocaleString()}대</b><span class="meta">/ 2,200대 주차 중 · ${esc(lp.at)}</span></div><div class="meter"><i style="width:${Math.min(100, lp.p/22)}%"></i></div>` : '<p class="meta">실시간 주차 대수를 불러오는 중…</p>'}<p class="meta">주말 만차 기록의 62%가 오후 1~3시에 몰려 있어요. 저녁 공연도 낮부터 차요.</p>`);
-    h += stepHTML('2', `${esc(v.gate || '동2문')}으로 들어가 ${esc(lot)} 주차`, `<p>${v.pcap ? `${v.pcap}대 규모` : ''}${lots.map(l => ps[l] ? ` · ${l}는 혼잡 기록 92일 중 ${ps[l]}일 만차` : '').join('')}</p><p class="meta">장애인·국가유공자 차량 주차요금 50% 할인 (대형 공연 날엔 사전정산·할인 없음)</p>`, true);
+    h += stepHTML('2', `${esc(v.gate || '동2문')}으로 들어가 ${esc(lot)} 주차`, `<p>${v.pcap ? `${v.pcap}대 규모` : ''}${lots.map(l => ps[l] ? ` · ${l}는 혼잡 기록 92일 중 ${ps[l]}일 만차` : '').join('')}</p><p class="meta">장애인·국가유공자 차량은 주차요금 50% 할인이에요(10분당 600원, 하루 최대 2만 원). 대형 공연 날엔 사전정산이 없고, 공연 티켓이 있어도 따로 할인되지 않아요. 입차는 오전 6시~밤 10시.</p>`, true);
     h += stepHTML('3', `${esc(v.name)}까지 걸어서 ${esc(v.pwalk || '몇')}분`, `<p class="meta">만남의광장 휠체어 진입로: 동2문 입차 → 그래피티의 벽 주차장 → 올림픽공원역 쪽 경사로</p>`);
   }
   // 도착 후
@@ -255,13 +276,46 @@ function renderRoute() {
   if (st.way === 'subway') {
     const seen = new Set([exitsFor(v)[0].s.id]);
     const alts = exitsFor(v).filter(x => !seen.has(x.s.id) && seen.add(x.s.id)).slice(0, 3);
-    h += `<details class="alt"><summary>다른 역으로 가기 (${alts.length})</summary>${alts.map(x => `<div class="altrow"><p style="margin:0"><span class="pill" style="background:${x.s.color};color:${onColor(x.s.color)}">${x.s.line}</span> <b>${esc(x.s.name)}</b> <span class="exit">${x.e.no}</span>번 출구 → 약 ${mins(x.p.m)}분</p>${x.s.warn ? `<p class="meta">${esc(x.s.warn)}</p>` : ''}${elevNote(x.s)}</div>`).join('')}</details>`;
+    h += `<details class="alt"><summary>다른 역으로 가기 (${alts.length})</summary>${alts.map(x => `<div class="altrow"><p style="margin:0">${pill(x.s)} <b>${esc(x.s.name)}</b> <span class="exit">${x.e.no}</span>번 출구 → 약 ${mins(x.p.m)}분</p>${x.s.warn ? `<p class="meta">${esc(x.s.warn)}</p>` : ''}${elevNote(x.s)}</div>`).join('')}</details>`;
   }
   $('#pane-route').innerHTML = h;
   markSpeaking();
 }
 
 // ---------- 공연 후 ----------
+// ---------- 막차 ----------
+const HOLI = ['01-01','03-01','05-05','06-06','08-15','10-03','10-09','12-25'];  // 양력 공휴일(음력 명절·대체공휴일은 역에 확인)
+const dayKind = d => (d.getDay() === 0 || d.getDay() === 6 || HOLI.includes(String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'))) ? 'we' : 'wd';
+function lastTrains(s, base) {
+  const L = D.lastTrain.st[s.id]; if (!L) return [];
+  return L[dayKind(base)].map(([dir, to, t]) => { const [H, M] = t.split(':').map(Number), d = new Date(base); d.setHours(H, M, 0, 0); if (H < 4) d.setDate(d.getDate() + 1); return {dir, to, at:d}; });
+}
+const TERM = ['방화', '마천', '중앙보훈병원', '개화', '별내', '모란'];  // 노선 종점
+function ltTable(T, x) {
+  const walk = mins(x.p.m) + 10;  // 걷는 시간 + 엘리베이터·개찰구 여유 10분
+  const rows = lastTrains(x.s, T.start); if (!rows.length) return null;
+  const groups = {}; rows.forEach(r => (groups[r.dir] ??= []).push(r));
+  const base = t => t.replace('(급행)', ''), lab = t => base(t) + '행' + (t.includes('급행') ? ' 급행' : '');
+  const miss = [];
+  const body = Object.values(groups).sort((p, q) => q.length - p.length).map(g => {
+    const term = TERM.find(t => g.some(r => base(r.to) === t)) || base(g[0].to), fulls = g.filter(r => base(r.to) === term), last = fulls.reduce((a, b) => b.at > a.at ? b : a);
+    const by = addMin(last.at, -walk); if (T.leave > by) miss.push({r:last, by});
+    return [...g].sort((a, b) => a.at - b.at).map(r => `<tr class="${base(r.to) === term ? '' : 'sub'}"><th scope="row">${esc(lab(r.to))}${base(r.to) === term ? ' <small>(종점)</small>' : ''}</th><td>${r === last ? `<b>${hm(r.at)}</b>` : hm(r.at)}</td><td>${hm(addMin(r.at, -walk))}</td></tr>`).join('');
+  }).join('<tr class="gap"><td colspan="3"></td></tr>');
+  return {miss, html:`<table><caption>${esc(x.s.name)} ${esc(x.s.line)} · ${x.e.no}번 출구까지 약 ${mins(x.p.m)}분</caption><thead><tr><th scope="col">열차(가는 곳)</th><th scope="col">막차</th><th scope="col">공연장에서 나설 시각</th></tr></thead><tbody>${body}</tbody></table>`};
+}
+function lastTrainHTML(T, v) {
+  const all = exitsFor(v), seen = new Set(), per = all.filter(x => !seen.has(x.s.id) && seen.add(x.s.id));
+  const main = ltTable(T, per[0]); if (!main) return '';
+  const others = per.slice(1).map(x => ltTable(T, x)).filter(Boolean);
+  const nm = m => esc(m.r.to.replace('(급행)', '')) + '행' + (m.r.to.includes('급행') ? ' 급행' : '');
+  return `<div class="lt"><h3>막차 확인 <small>${dayKind(T.start) === 'we' ? '토·휴일' : '평일'} 시간표</small></h3>
+  ${main.miss.map(m => `<div class="note warn">${I.info}<span>혼잡을 피해 ${hm(T.leave)}까지 기다리면 <b>${nm(m)} 막차(${hm(m.r.at)})</b>를 놓칠 수 있어요. ${m.by < T.end ? `공연이 끝나기 전(${hm(m.by)})에 나서야 탈 수 있어요. 이 방향이면 장애인콜택시나 아래 다른 노선을 미리 생각해 두세요.` : `이 방향이면 <b>${hm(m.by)}</b> 전에 공연장을 나서세요.`}</span></div>`).join('')}
+  ${main.html}
+  ${others.length ? `<details><summary>다른 역·노선 막차 보기</summary>${others.map(o => o.html).join('')}</details>` : ''}
+  <p class="meta">표의 '가는 곳'까지 가거나 그 전에 내리면 그 열차를 탈 수 있어요. 나설 시각은 걷는 시간에 엘리베이터·개찰구 여유 10분을 더해 계산했어요. 서울교통공사 시간표(${D.lastTrain.asof} 기준)이며, 음력 명절·대체공휴일은 역에 확인하세요.</p></div>`;
+}
+
 function renderAfter() {
   const T = timesFor(), A = D.exit25, mx = Math.max(...A.event), v = venue();
   let h = speakBar('after');
@@ -269,7 +323,7 @@ function renderAfter() {
   else h += `<h3 style="margin:0 0 4px">공연이 끝나면 1시간 넘게 붐벼요</h3>`;
   h += `<p>큰 공연이 끝나면 20~40분 뒤에 가장 붐벼요. 평소 같은 시각의 약 10배예요. 70분 뒤에는 절반, 90분 뒤에는 3분의 1로 줄어요. 엘리베이터와 출구 앞 줄도 이때 가장 길어요.</p>`;
   h += `<div class="note info">${I.info}<span>오래 기다리기 어렵다면 <b>공연이 끝나기 직전에 먼저 나서는 것</b>도 방법이에요. 끝나기 10분 전은 가장 붐빌 때의 3분의 1 정도예요.</span></div>`;
-  if (T.leave && (T.leave.getHours() >= 23 || T.leave.getHours() < 4)) h += `<div class="note">${I.info}<span>나서는 시각이 늦어요. 출발 전에 지하철 막차 시간을 꼭 확인하세요.</span></div>`;
+  if (T.end && st.way === 'subway') h += lastTrainHTML(T, v);
   h += `<div class="bars" role="img" aria-label="공연 종료 전후 10분 단위 출차 대수. 종료 20분 뒤 ${mx}대로 가장 많고, 70분 뒤 절반, 90분 뒤 3분의 1로 줄어요.">${A.min.map((o, i) => {
     const lab = T.end ? hm(addMin(T.end, o)) : (o === 0 ? '종료' : (o > 0 ? '+' : '') + o + '분');
     const hot = o >= 0 && A.event[i] >= mx / 2;
@@ -280,6 +334,7 @@ function renderAfter() {
   <ol class="steps" style="margin-top:12px">
    ${stepHTML('1', '기다리는 동안', '<p>공연장 근처 화장실을 먼저 들르고, 출구 쪽 혼잡이 줄 때까지 실내에서 쉬세요.</p>')}
    ${stepHTML('2', '돌아가는 길', st.way === 'subway' ? `<p>올 때와 같은 <span class="exit">${exitsFor(v)[0].e.no}</span>번 출구 엘리베이터를 이용하세요.</p>` : `<p>공연이 끝나면 출차의 약 ${A.gates['동2문']}%가 동2문, ${A.gates['북2문']}%가 북2문, ${A.gates['남2문']}%가 남2문으로 몰려요.${v && v.gate ? ` 이 공연장 주차장은 <b>${esc(v.gate)}</b> 쪽이에요.` : ''} 종료 70분 뒤부터 나서면 기다림이 짧아요.</p>`)}
+   ${stepHTML('3', '택시가 필요하면', `<p><b>서울 장애인콜택시</b> <a class="tel" href="tel:15884388">1588-4388</a> (전화·문자, 앱 '장애인콜택시')</p><p class="meta">필요한 때 바로 접수하는 방식이 원칙이라, 공연이 끝나면 바로 접수하세요. 끝난 직후엔 대기가 길 수 있어요. 휠체어 이용 시 보호자 등 3명까지 함께 탈 수 있어요. 시각장애인은 복지콜 <a class="tel" href="tel:16004477">1600-4477</a>.</p><p class="meta">타는 곳은 콜센터에 공연장 이름과 가까운 출입문(${esc((v && v.gate) || '동2문')})을 함께 말하면 찾기 쉬워요.</p>`)}
   </ol>`;
   $('#pane-after').innerHTML = h;
   markSpeaking();
@@ -368,7 +423,8 @@ function renderStart() {
     ${quick.length ? `<p class="qlabel">곧 열리는 공연</p><div class="showlist">${quick.map(s => showBtn(s, shows.indexOf(s))).join('')}</div>` : ''}
     <p class="qlabel">이동 방법 (나중에 바꿀 수 있어요)</p>
     <div class="seg" role="group" aria-label="이동 방법">${MODES.map(m => `<button data-mode="${m.id}" aria-pressed="${st.mode === m.id}">${m.icon}${m.label}</button>`).join('')}</div>
-    <div class="seg" role="group" aria-label="교통수단">${WAYS.map(w => `<button data-way="${w.id}" aria-pressed="${st.way === w.id}">${w.icon}${w.label}</button>`).join('')}</div>`;
+    <div class="seg" role="group" aria-label="교통수단">${WAYS.map(w => `<button data-way="${w.id}" aria-pressed="${st.way === w.id}">${w.icon}${w.label}</button>`).join('')}</div>
+    ${installHTML()}`;
   $('#times').hidden = true;
   const ph = t => `<div class="empty">${I.info}<p>${t}</p><button class="pick" data-open>${I.cal} 공연 선택</button></div>`;
   $('#pane-route').innerHTML = ph('공연을 먼저 고르면 가는 길을 단계별로 안내해 드려요.');
@@ -377,10 +433,56 @@ function renderStart() {
 const showBtn = (s, i) => `<button class="show" data-i="${i}" aria-pressed="${s === st.show}"><span class="d"><b>${s.at.getMonth()+1}/${s.at.getDate()}</b><span>${DOW[s.at.getDay()]} ${hm(s.at)}</span></span><span><span class="tt">${esc(s.title)}</span><br><span class="vv">${esc(D.venues.find(v => v.id === s.venue).name)}</span></span></button>`;
 function renderShows() {
   $('#shows').innerHTML = shows.map((s, i) => showBtn(s, i)).join('') || '<p class="meta">예정된 공연 정보가 없어요.</p>';
-  $('#evSrc').textContent = evSource === 'live' ? '올림픽공원 공식 일정에서 방금 불러온 공연이에요.' : `공연 일정: ${D.asof} 저장본`;
+  $('#evSrc').textContent = evSource === 'live' ? '올림픽공원 공식 일정에서 방금 불러온 공연이에요.' : evSource === 'saved' ? `공식 일정 ${fmtDate(evSavedAt)} ${hm(evSavedAt)}에 저장해 둔 공연이에요.` : `공연 일정: ${D.asof} 저장본`;
   $('#venueSel').innerHTML = `<option value="">공연장 고르기</option>` + D.venues.map(v => `<option value="${v.id}" ${v.id === st.venue ? 'selected' : ''}>${esc(v.name)}</option>`).join('');
 }
 $('#layers').innerHTML = [['path','보행로'],['toilet','화장실'],['center','안내센터'],['store','편의점']].map(([k,l]) => `<button data-k="${k}" aria-pressed="${st.layers[k]}">${l}</button>`).join('');
+
+function shareURL() {
+  const s = curShow(), p = new URLSearchParams({v:st.venue, m:st.mode, w:st.way});
+  if (s) { p.set('t', s.at.toISOString()); p.set('n', s.title.slice(0, 80)); }
+  return location.origin + location.pathname + '?' + p + '#route';
+}
+function shareText() {
+  const v = venue(), s = curShow(), T = timesFor(), m = MODES.find(x => x.id === st.mode).label, w = WAYS.find(x => x.id === st.way).label;
+  const L = [`[편한길 올팍] ${s ? s.title : v.name}`];
+  if (s) L.push(`${fmtDate(s.at)} ${hm(s.at)} 시작 · ${v.name}`); else L.push(v.name);
+  L.push(`${m} · ${w}`);
+  if (s && st.way === 'subway') { const x = exitsFor(v)[0]; L.push(`${hm(T.arrive)}까지 ${x.s.name} ${x.s.line} ${x.e.no}번 출구(엘리베이터)에서 만나요`); }
+  else if (s) L.push(`${hm(T.arrive)}까지 ${v.gate || '동2문'} 쪽 주차장 도착`);
+  if (s) L.push(`끝나면 ${hm(T.leave)} 이후 나서기 (혼잡 피하기)`);
+  return L.join('\n');
+}
+async function shareTrip() {
+  const url = shareURL(), text = shareText();
+  if (navigator.share) { try { await navigator.share({title:'편한길 올팍', text, url}); return; } catch(e) { if (e && e.name === 'AbortError') return; } }
+  try { await navigator.clipboard.writeText(text + '\n' + url); toast('안내와 링크를 복사했어요. 문자나 메신저에 붙여 넣으세요.'); }
+  catch(e) { toast('이 링크를 복사해 보내세요: ' + url); }
+}
+function toast(msg) {
+  let t = $('#toast'); if (!t) { t = document.createElement('div'); t.id = 'toast'; t.setAttribute('role', 'status'); document.body.append(t); }
+  t.textContent = msg; t.classList.add('on'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('on'), 3500);
+}
+
+// ---------- 설치(PWA)·오프라인 ----------
+let installEvt = null;
+const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+function installHTML() {
+  if (standalone()) return '';
+  if (installEvt) return `<div class="install"><p>휴대폰에 앱처럼 설치해 두면 공원 안에서 통신이 약해도 길 안내가 열려요.</p><button id="installBtn">설치하기</button></div>`;
+  if (isIOS) return `<div class="install"><p>아이폰은 Safari 아래쪽 <b>공유</b> 버튼 → <b>홈 화면에 추가</b>를 누르면 앱처럼 설치돼요. 통신이 약해도 길 안내가 열려요.</p></div>`;
+  return '';
+}
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; if (!venue()) renderStart(); });
+addEventListener('appinstalled', () => { installEvt = null; toast('설치했어요. 홈 화면에서 편한길 올팍을 여세요.'); if (!venue()) renderStart(); });
+const netState = () => { $('#offline').hidden = navigator.onLine; };
+addEventListener('online', () => { netState(); toast('다시 연결됐어요. 새로고침하면 실시간 정보를 다시 불러와요.'); });
+addEventListener('offline', netState);
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+// 마지막으로 불러온 공식 일정을 기기에 저장해 두고, 연결이 없을 때 씀
+function saveEvents(ev) { try { localStorage.setItem('pyeonhanEvents', JSON.stringify({at:Date.now(), ev})); } catch(e) {} }
+function loadSavedEvents() { try { const s = JSON.parse(localStorage.getItem('pyeonhanEvents') || 'null'); if (s && Date.now() - s.at < 14 * 864e5 && s.ev.length) return s; } catch(e) {} return null; }
 
 // 이벤트
 document.addEventListener('click', e => {
@@ -391,29 +493,34 @@ document.addEventListener('click', e => {
   else if (b.dataset.k) { st.layers[b.dataset.k] = !st.layers[b.dataset.k]; b.setAttribute('aria-pressed', st.layers[b.dataset.k]); drawMap(); }
   else if (b.id === 'openSheet' || b.dataset.open !== undefined) { renderShows(); $('#sheet').showModal(); }
   else if (b.id === 'sheetX') $('#sheet').close();
-  else if (b.classList.contains('show')) { st.show = shows[+b.dataset.i]; st.venue = st.show.venue; if ($('#sheet').open) $('#sheet').close(); render(); scrollTo({top:0, behavior:'smooth'}); }
+  else if (b.classList.contains('show')) { dropLink(); st.show = shows[+b.dataset.i]; st.venue = st.show.venue; if ($('#sheet').open) $('#sheet').close(); render(); scrollTo({top:0, behavior:'smooth'}); }
   else if (b.dataset.sayall !== undefined) { if (sp.on && sp.pane === b.dataset.sayall) stopSpeak(); else sayPane(b.dataset.sayall); }
   else if (b.dataset.rate !== undefined) { sp.rate = sp.rate < 1 ? 1 : 0.8; try { localStorage.setItem('pyeonhanRate', sp.rate); } catch(e) {} refreshBars(); if (sp.on) sayPane(sp.pane); }
   else if (b.dataset.say !== undefined) { const stEl = b.closest('.step'), pane = b.closest('.pane').id.slice(5), idx = [...document.querySelectorAll(`#pane-${pane} .step`)].indexOf(stEl); sayList(pane, [{step:idx, text:speakable(stEl)}], 0); }
   else if (b.id === 'mapsay') { if (sp.on && sp.pane === 'map') { stopSpeak(); return; } const items = [...$('#mapdesc').querySelectorAll('li')].map(li => ({step:-1, text:speakable(li)})); const c = centerFor(venue()), tl = toiletsNear(venue()); items.unshift({step:-1, text:`지도 안내예요. 파란 선은 계단을 피한 길이에요.`}); items.push({step:-1, text:`공연장에서 가장 가까운 화장실은 ${tl[0].p}, 약 ${r10(tl[0].m)}미터 거리예요. 휠체어 대여는 ${c.name}에서 해요.`}); sayList('map', items, 0); }
+  else if (b.id === 'shareBtn') shareTrip();
+  else if (b.id === 'installBtn' && installEvt) { installEvt.prompt(); installEvt.userChoice.finally(() => { installEvt = null; if (!venue()) renderStart(); }); }
   else if (b.id === 'bigBtn') { setFs((fsLevel + 1) % 3); save(); drawMap(); }
 });
 $('#sheet').addEventListener('click', e => { if (e.target === $('#sheet')) $('#sheet').close(); });
-$('#venueSel').addEventListener('change', e => { if (!D.venues.some(v => v.id === e.target.value)) return; st.venue = e.target.value; if (st.show && st.show.venue !== st.venue) st.show = null; $('#sheet').close(); render(); });
+$('#venueSel').addEventListener('change', e => { if (!D.venues.some(v => v.id === e.target.value)) return; dropLink(); st.venue = e.target.value; if (st.show && st.show.venue !== st.venue) st.show = null; $('#sheet').close(); render(); });
 setFs(fsLevel);
 addEventListener('hashchange', () => setTab(location.hash.slice(1) || 'route'));
 addEventListener('resize', () => setTab(st.tab));
 
 $('#sources').innerHTML = `<ul>
-<li><b>한국체육산업개발</b>: 올림픽공원 실시간 주차현황 API, 공연정보·공식 일정안내, 주차장 혼잡도 정보(2025.2~2026.8, 699건), 올림픽공원 입출차 정보(2024.7, 215,528건)</li>
+<li><b>한국체육산업개발</b>: 올림픽공원 실시간 주차현황 API, 공식 일정안내, 공연정보(문화공공데이터광장, 2,502건), 주차장 입출차 정보(2025년 약 240만 건·2024.7 215,528건), 연계 데이터(2025 시간별 공연·관객·날씨), 주차장 혼잡도 정보(2025.2~2026.8, 699건)</li>
 <li><b>서울교통공사</b>: 교통약자이용정보 API(엘리베이터 실시간 가동·안전발판), 엘리베이터 설치현황, 9호선 2·3단계 엘리베이터 설치현황, 역사 장애인화장실정보, 수유실현황, 전동휠체어 급속충전기 운영 정보</li>
 <li><b>국민체육진흥공단</b>: 올림픽공원 편의시설 정보(화장실·매점 위치, 2021)</li>
-<li>올림픽공원 홈페이지: 공연장별 주차장, 안내센터 휠체어 대여, 휠체어 진입로 · 지도와 보행로: OpenStreetMap</li></ul>
+<li><b>서울교통공사</b> 사이버스테이션: 역별 첫차·막차 시간표 · <b>서울시설공단</b>: 장애인콜택시 이용 안내</li>
+<li>올림픽공원 홈페이지: 공연장별 주차장·주차요금, 안내센터 휠체어 대여, 휠체어 진입로 · 지도와 보행로: OpenStreetMap</li></ul>
 <p><b>한계</b>: 공원 안 경사로 기울기·턱·장애인 화장실 위치는 공개 데이터가 없어요. 보행로는 OpenStreetMap에서 계단으로 표시된 길만 피한 것이라 현장과 다를 수 있어요. 공연 종료 시각은 공식 소요시간이 없으면 같은 출연자의 지난 공연이나 공연장의 보통 소요시간(공연정보 API)으로 추정해요. 공연 뒤 혼잡은 주차장 출차 기록이라 걸어서 나가는 사람의 흐름과는 조금 다를 수 있어요.</p>`;
 
 // ---------- 시작 ----------
+{ const s = loadSavedEvents(); if (s) { evSource = 'saved'; evSavedAt = new Date(s.at); setShows(s.ev); } }
+netState();
 renderShows(); render(); setTab(location.hash.slice(1) || 'route'); st.started = true;
 (async () => { try { const j = await fetch(C.PARKING_API).then(r => r.json()); const p = +j[0].parking_sum; if (p >= 0) { live.parking = {p, at:hm(new Date()) + ' 실시간'}; if (st.way === 'car' && venue()) renderRoute(); } } catch(e) {} })();
 (async () => { try { if (!C.LIVE_API) throw 0; const j = await fetch(C.LIVE_API + '/elevators').then(r => r.json()); live.elev = j.items && j.items.length ? j : 'fail'; } catch(e) { live.elev = 'fail'; } if (venue()) renderRoute(); })();
-if (window.loadLiveEvents) loadLiveEvents(D.venues).then(ev => { if (ev.length) { evSource = 'live'; setShows(ev); renderShows(); render(); } }).catch(() => {});
+if (window.loadLiveEvents) loadLiveEvents(D.venues).then(ev => { if (ev.length) { evSource = 'live'; saveEvents(ev); setShows(ev); renderShows(); render(); } }).catch(() => {});
 }

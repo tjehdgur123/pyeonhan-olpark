@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0b4fa3">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="편한길 올팍">
 <title>편한길 올팍</title>
 <meta name="description" content="휠체어·유아차·보행약자를 위한 올림픽공원 공연 관람 길잡이">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -55,6 +61,11 @@ svg.i{width:1.2em;height:1.2em;flex:none;vertical-align:-.22em}
 .seg button{min-height:44px;padding:6px 14px;border-radius:999px;border:1.5px solid var(--line);background:var(--surface);cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:0.9375rem}
 .seg button[aria-pressed=true]{background:var(--blueBg);border-color:var(--blueBg);color:#fff}
 .seg .div{width:1px;background:var(--line);margin:4px 4px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.row2 .change{margin-top:0}
+.offline{background:var(--warnBg);color:var(--warn);padding:10px 16px;font-size:0.9375rem;text-align:center;border-bottom:1px solid var(--line)}
+.install{margin-top:12px;padding:12px 14px;border:1px dashed var(--line);border-radius:12px;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}.install p{margin:0;font-size:0.9375rem}.install button{min-height:44px;padding:0 14px;border-radius:10px;border:0;background:var(--blueBg);color:#fff;font-weight:700;cursor:pointer}
+.lt{margin:14px 0;padding:14px;border:1px solid var(--line);border-radius:12px}.lt h3{margin:0 0 8px;font-size:1.0625rem}.lt h3 small{display:block;font-weight:500;color:var(--mute);font-size:0.875rem}.lt table{width:100%;border-collapse:collapse;font-size:0.9375rem}.lt th,.lt td{text-align:left;padding:6px 4px;border-bottom:1px solid var(--line)}.lt thead th{color:var(--mute);font-weight:500;font-size:0.8125rem}.lt tr.sub th,.lt tr.sub td{color:var(--mute);font-weight:400}.lt tr.sub th{padding-left:14px}.lt .note{margin:0 0 10px}.lt caption{text-align:left;font-weight:700;padding:6px 0;font-size:0.9375rem}.lt details{margin-top:10px}.lt summary{cursor:pointer;min-height:44px;display:flex;align-items:center;color:var(--blue);font-weight:700}.lt table+table{margin-top:12px}.lt tr.gap td{border:0;padding:4px}.lt th small{color:var(--mute);font-weight:400}
+#toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translate(-50%,20px);max-width:min(92vw,520px);background:var(--ink);color:var(--bg);padding:12px 16px;border-radius:12px;font-size:0.9375rem;opacity:0;pointer-events:none;transition:.25s;z-index:50;word-break:break-all}#toast.on{opacity:1;transform:translate(-50%,0)}
 .change{margin-top:12px;width:100%;min-height:46px;border-radius:12px;border:0;background:var(--blueSoft);color:var(--blue);font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
 
 .pick{margin-top:14px;width:100%;min-height:56px;border-radius:14px;border:0;background:var(--blueBg);color:#fff;font-weight:700;font-size:1.0625rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
@@ -187,6 +198,7 @@ footer li{margin:4px 0}
  <span class="sp"></span>
  <button class="ghost" id="bigBtn" title="누를 때마다 글자 크기가 바뀌어요">글자 크기 보통</button>
 </div></header>
+<div class="offline" id="offline" role="status" hidden>인터넷 연결이 없어요. 저장해 둔 길 안내를 보여 드려요. 실시간 정보(주차·엘리베이터)는 연결되면 다시 불러와요.</div>
 
 <main class="shell">
  <div class="cols">
@@ -231,9 +243,9 @@ footer li{margin:4px 0}
  <select id="venueSel" aria-label="공연장 선택"></select>
 </div></dialog>
 
-<script src="data.js?v=20261123i"></script>
-<script src="config.js?v=20261123i"></script>
-<script src="events.js?v=20261123i"></script>
-<script src="app.js?v=20261123i"></script>
+<script src="data.js?v=20261123k"></script>
+<script src="config.js?v=20261123k"></script>
+<script src="events.js?v=20261123k"></script>
+<script src="app.js?v=20261123k"></script>
 </body>
 </html>

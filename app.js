@@ -37,7 +37,7 @@ function setFs(n) { fsLevel = +n || 0; const r = document.documentElement; r.cla
 // ---------- 상태 ----------
 const MODES = [{id:'wheel', label:'휠체어', speed:55, icon:I.wheel}, {id:'stroller', label:'유아차', speed:60, icon:I.stroller}, {id:'slow', label:'걷기 힘듦', speed:40, icon:I.slow}];
 const WAYS = [{id:'subway', label:'지하철', icon:I.train}, {id:'car', label:'자동차', icon:I.car}];
-const st = {show:null, venue:null, mode:'wheel', way:'subway', tab:'route', layers:{toilet:true, center:true, store:false, path:true, report:true}};
+const st = {show:null, venue:null, mode:'wheel', way:'subway', tab:'route', layers:{route:true, toilet:true, center:true, store:false, path:true, report:true}};
 const live = {parking:null, elev:null, ramp:null, reports:null};
 try { const s = JSON.parse(localStorage.getItem('pyeonhan') || '{}'); if (s.from) st.from = s.from; if (s.mode) st.mode = s.mode; if (s.way) st.way = s.way; if (s.fs) setFs(s.fs); else if (s.big) setFs(1); } catch(e) {}
 // 공유 링크: ?v=공연장&t=시작시각&n=공연명&m=이동방법&w=교통수단
@@ -582,10 +582,41 @@ const P = ll => [+((ll[1]-B.w)*kx).toFixed(1), +((B.n-ll[0])*ky).toFixed(1)];
 const pts = a => a.map(P).map(p => p.join(',')).join(' ');
 let vb = {x:0, y:0, w:W, h:H};
 const setVB = () => { const svg = $('#map'); svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`); const px = $('#mapwrap').clientWidth || 600, s = Math.max(0.35, Math.min(3, vb.w / px * 0.85)); svg.querySelectorAll('.sc').forEach(g => { const [x,y] = g.dataset.p.split(','); g.setAttribute('transform', `translate(${x} ${y}) scale(${s.toFixed(3)})`); }); };
+// 지도에 그릴 경로: 기본은 '가는 길' 출구, 지도에서 출구를 눌러 바꾸거나 끌 수 있음
+function mapExit(v) {
+  const key = [st.venue, st.from, st.way, st.mode].join('|');
+  if (st.mapKey !== key) { st.mapKey = key; st.mapExit = null; }
+  if (st.mapExit === 'off' || !st.layers.route) return null;
+  if (st.mapExit) { const x = exitsFor(v).find(e => e.id === st.mapExit); if (x) return x; }
+  return st.way === 'subway' ? mainExit(v) : null;
+}
+function tapExit(id) {
+  const v = venue(); if (!v) return;
+  const cur = mapExit(v);
+  if (cur && cur.id === id) { st.mapExit = 'off'; toast('경로를 껐어요. 출구를 다시 누르면 켜져요.'); }
+  else { st.mapExit = id; st.layers.route = true; const x = exitsFor(v).find(e => e.id === id); toast(`${x.s.name} ${x.e.no}번 출구에서 가는 길을 보여 줘요.`); }
+  syncLayerBtns(); drawMap();
+}
+function syncLayerBtns() { document.querySelectorAll('#layers button').forEach(b => { const k = b.dataset.k; b.setAttribute('aria-pressed', k === 'route' ? String(st.layers.route && st.mapExit !== 'off') : String(!!st.layers[k])); }); }
+const myLoc = {on:false, pos:null, watch:null, first:true};
+function toggleLoc() {
+  if (myLoc.on) { navigator.geolocation.clearWatch(myLoc.watch); Object.assign(myLoc, {on:false, pos:null, watch:null}); $('#locBtn').setAttribute('aria-pressed', 'false'); drawMap(); return; }
+  if (!navigator.geolocation) { toast('이 기기에서는 위치를 쓸 수 없어요.'); return; }
+  Object.assign(myLoc, {on:true, first:true}); $('#locBtn').setAttribute('aria-pressed', 'true'); toast('내 위치를 찾는 중이에요…');
+  myLoc.watch = navigator.geolocation.watchPosition(p => {
+    const ll = [p.coords.latitude, p.coords.longitude], out = ll[0] < B.s || ll[0] > B.n || ll[1] < B.w || ll[1] > B.e;
+    if (out) { if (myLoc.first) toast('지금 위치가 올림픽공원 밖이라 지도에 표시하지 않아요.'); myLoc.first = false; myLoc.pos = null; return; }
+    myLoc.pos = ll;
+    const me = $('#me');
+    if (me && !myLoc.first) { me.dataset.p = P(ll).join(','); setVB(); return; }
+    drawMap();
+    if (myLoc.first) { const q = P(ll); vb.x = q[0] - vb.w / 2; vb.y = q[1] - vb.h / 2; setVB(); myLoc.first = false; toast('파란 점이 내 위치예요. 버튼을 다시 누르면 꺼져요.'); }
+  }, () => { toast('위치를 가져오지 못했어요. 휴대폰 설정에서 위치 권한을 확인하세요.'); toggleLoc(); }, {enableHighAccuracy:true, maximumAge:5000, timeout:20000});
+}
 // ---------- 지도 따라가기 ----------
 let follow = null;
 function startFollow() {
-  const v = venue(), x = mainExit(v); if (!x.p.real) return;
+  const v = venue(), x = mapExit(v) || mainExit(v); if (!x.p.real) return;
   const turns = directions(x.p.pts, v, `${x.s.name} ${x.e.no}번 출구`).turns;
   follow = {i:0, turns, pos:null, watch:null, out:false};
   if (navigator.geolocation) follow.watch = navigator.geolocation.watchPosition(onPos, () => { if (follow && !follow.pos) { follow.noGps = true; renderFollow(); } }, {enableHighAccuracy:true, maximumAge:5000, timeout:20000});
@@ -618,8 +649,9 @@ function sayFollow() { if (!SPEECH || !follow) return; const t = follow.turns[fo
 function drawMap() {
   const v = venue() || {id:'', name:'', lat:0, lng:0}, svg = $('#map'), has = !!venue();
   let route = null;
-  if (has && st.way === 'subway') route = mainExit(v).p.pts;
-  const mark = (ll, inner, title, off) => { const p = P(ll); return `<g class="sc" data-p="${p[0]},${p[1]}"><title>${esc(title)}</title>${off ? `<g transform="translate(${off[0]} ${off[1]})">${inner}</g>` : inner}</g>`; };
+  const mx = has ? mapExit(v) : null;
+  if (mx) route = mx.p.pts;
+  const mark = (ll, inner, title, off, attrs) => { const p = P(ll); return `<g class="sc" data-p="${p[0]},${p[1]}" ${attrs || `data-info="${esc(title)}"`}><title>${esc(title)}</title>${off ? `<g transform="translate(${off[0]} ${off[1]})">${inner}</g>` : inner}</g>`; };
   const OFF = {'olpark5-2':[22,20], 'olpark9-3':[-26,6], 'olpark9-4':[4,-24]};
   let g = `<title id="mapTitle">올림픽공원 지도: ${esc(v.name)}까지 경로</title><rect x="-2000" y="-2000" width="${W+4000}" height="${H+4000}" fill="var(--bg)"/>`;
   g += Object.values(D.roads).map(r => `<polyline points="${pts(r)}" fill="none" stroke="var(--road)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>`).join('');
@@ -635,18 +667,20 @@ function drawMap() {
   if (st.layers.report && live.reports) g += live.reports.map(r => mark(r.ll, (doubted(r) ? '<g opacity=".4">' : '<g>') + (r.kind === 'good' ? `<circle r="11" fill="#2b8a3e" stroke="#fff" stroke-width="2.5"/><path d="M-5 0l3.5 3.5L5-4" stroke="#fff" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>` : `<path d="M0-14 13 10H-13z" fill="#d9480f" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/><text y="7" font-size="14" font-weight="700" fill="#fff" text-anchor="middle">!</text>`) + '</g>', `현장 제보 · ${RK[r.kind]}${r.text ? ' · ' + r.text : ''} (${ago(r.at)}, 저도 봤어요 ${r.ok || 0} · 지금은 아니에요 ${r.flag || 0})`)).join('');
   if (st.layers.center) g += D.centers.map(c => mark([c.lat,c.lng], `<circle r="15" fill="var(--yel)" stroke="#111" stroke-width="1.5"/><text y="6" font-size="17" text-anchor="middle" font-weight="700" fill="#111">i</text>`, `${c.name} · 휠체어 무료 대여`)).join('');
   g += D.venues.map(x => { const on = x.id === v.id; return mark(vll(x), `<circle r="${on ? 15 : 9}" fill="${on ? 'var(--blueBg)' : 'var(--mute)'}" stroke="#fff" stroke-width="3"/><text y="${on ? -24 : -15}" font-size="${on ? 24 : 16}" font-weight="${on ? 700 : 500}" text-anchor="middle" fill="var(--ink)" paint-order="stroke" stroke="var(--bg)" stroke-width="5">${esc(x.name)}</text>`, x.name); }).join('');
-  const best = has && st.way === 'subway' ? mainExit(v).id : '';
-  D.stations.forEach(s => s.ev.forEach(e => { const id = s.id + '-' + e.no, on = id === best; g += mark(e.ll, `<rect x="-16" y="-16" width="32" height="32" rx="7" fill="${on ? 'var(--yel)' : '#fff'}" stroke="${s.color}" stroke-width="3.5"/><text y="6" font-size="18" font-weight="700" text-anchor="middle" fill="#111">${e.no}</text>`, `${s.name} ${s.line} ${e.no}번 출구 엘리베이터`, OFF[id]); }));
+  const best = mx ? mx.id : '';
+  D.stations.forEach(s => s.ev.forEach(e => { const id = s.id + '-' + e.no, on = id === best; g += mark(e.ll, `<rect x="-16" y="-16" width="32" height="32" rx="7" fill="${on ? 'var(--yel)' : '#fff'}" stroke="${s.color}" stroke-width="3.5"/><text y="6" font-size="18" font-weight="700" text-anchor="middle" fill="#111">${e.no}</text>`, `${s.name} ${s.line} ${e.no}번 출구 엘리베이터`, OFF[id], `data-exit="${id}" role="button" tabindex="0" aria-pressed="${on}" aria-label="${esc(s.name)} ${esc(s.line)} ${e.no}번 출구 엘리베이터, ${on ? '경로 끄기' : '여기서 가는 길 보기'}" class="sc exitbtn"`); }));
   [['몽촌토성역', D.stations[2].ev[0].ll, 0, -30], ['한성백제역', D.stations[3].ev[0].ll, 0, 44], ['올림픽공원역', D.stations[0].ev[0].ll, -10, 48]].forEach(([n, ll, dx, dy]) => { g += mark(ll, `<text x="${dx}" y="${dy}" font-size="19" font-weight="700" text-anchor="middle" fill="var(--ink)" paint-order="stroke" stroke="var(--bg)" stroke-width="5">${n}</text>`, n); });
-  if (follow && follow.pos) g += `<g class="sc" id="me" data-p="${P(follow.pos).join(',')}"><title>내 위치</title><circle r="16" fill="#378ADD" opacity=".25"/><circle r="8" fill="#185FA5" stroke="#fff" stroke-width="3"/></g>`;
+  const mePos = (follow && follow.pos) || myLoc.pos;
+  if (mePos) g += `<g class="sc" id="me" data-p="${P(mePos).join(',')}" data-info="내 위치"><title>내 위치</title><circle r="16" fill="#378ADD" opacity=".25"/><circle r="8" fill="#185FA5" stroke="#fff" stroke-width="3"/></g>`;
   svg.innerHTML = g;
   if (follow) { const t = follow.turns[follow.i], nx = follow.turns[follow.i + 1]; fit([...t.pts, ...(nx ? [nx.ll] : []), ...(follow.pos ? [follow.pos] : [])], true); }
   else fit(has ? (route || [vll(v), [centerFor(v).lat, centerFor(v).lng]]) : D.park);
   renderFollow();
-  const dirs = has && st.way === 'subway' && mainExit(v).p.real ? directions(mainExit(v).p.pts, v, `${mainExit(v).s.name} ${mainExit(v).e.no}번 출구`) : [];
+  const dirs = mx && mx.p.real ? directions(mx.p.pts, v, `${mx.s.name} ${mx.e.no}번 출구`) : [];
   $('#mapsay').hidden = !SPEECH || !dirs.length;
   $('#mapdesc').innerHTML = dirs.length ? `<details class="alt"><summary>지도 내용 글로 보기</summary><ol class="turns">${dirs.map(t => `<li>${t}</li>`).join('')}</ol></details>` : '';
-  $('#mapnote').textContent = !has ? '공연을 고르면 엘리베이터 출구에서 공연장까지 계단 없는 길을 그려 드려요. 노란 숫자: 엘리베이터 출구, 노란 i: 휠체어 대여.' : st.way === 'subway' ? (mainExit(v).p.real ? '파란 선: 계단을 피한 보행로 (OpenStreetMap 보행로 기준).' : '파란 선: 출구에서 공연장까지 방향 (실제 길은 현장 안내를 따르세요).') : '노란 i: 휠체어 무료 대여 안내센터';
+  $('#mapnote').textContent = !has ? '공연을 고르면 엘리베이터 출구에서 공연장까지 계단 없는 길을 그려 드려요. 노란 숫자: 엘리베이터 출구, 노란 i: 휠체어 대여.' : mx ? `파란 선: ${mx.s.name} ${mx.e.no}번 출구에서 계단을 피한 길. 출구 번호를 누르면 그 출구 경로로 바뀌고, 한 번 더 누르면 꺼져요.` : '출구 번호를 누르면 그 출구에서 가는 길을 보여 줘요. 아이콘을 누르면 이름이 나와요.';
+  syncLayerBtns();
 }
 function fit(list, tight) {
   const p = list.map(P), xs = p.map(a => a[0]), ys = p.map(a => a[1]);
@@ -669,6 +703,12 @@ function zoom(f, cx, cy) { const nw = Math.min(W*1.6, Math.max(120, vb.w * f)), 
   wrap.addEventListener('click', e => { if (!pick || !downAt || e.target.closest('.zoom, #pickbar')) return; if (Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return; const c = toSvg(e.clientX, e.clientY); vb.x = c[0] - vb.w / 2; vb.y = c[1] - vb.h / 2; setVB(); });
   // 키보드로 지도 옮기기 (화살표)
   wrap.addEventListener('keydown', e => { const d = {ArrowLeft:[-1,0], ArrowRight:[1,0], ArrowUp:[0,-1], ArrowDown:[0,1]}[e.key]; if (!d || e.target !== wrap) return; e.preventDefault(); vb.x += d[0] * vb.w * 0.12; vb.y += d[1] * vb.h * 0.12; setVB(); });
+  wrap.addEventListener('pointerup', e => {
+    if (pick || !downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6 || e.target.closest('.zoom, #pickbar, #followCard')) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY); const t = el && el.closest('[data-exit], [data-info]'); if (!t) return;
+    if (t.dataset.exit) tapExit(t.dataset.exit); else toast(t.dataset.info);
+  });
+  wrap.addEventListener('keydown', e => { const t = e.target.closest && e.target.closest('[data-exit]'); if (t && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); tapExit(t.dataset.exit); setTimeout(() => { const n = document.querySelector(`[data-exit="${t.dataset.exit}"]`); if (n) n.focus(); }, 30); } });
   const up = e => { ptr.delete(e.pointerId); if (ptr.size < 2) pinch = null; if (!ptr.size) wrap.classList.remove('drag'); else last = [...ptr.values()][0]; };
   wrap.addEventListener('pointerup', up); wrap.addEventListener('pointercancel', up);
   wrap.addEventListener('wheel', e => { e.preventDefault(); const c = toSvg(e.clientX, e.clientY); zoom(e.deltaY > 0 ? 1.15 : 1/1.15, c[0], c[1]); }, {passive:false});
@@ -715,7 +755,7 @@ function renderShows() {
   $('#evSrc').textContent = evSource === 'live' ? '올림픽공원 공식 일정에서 방금 불러온 공연이에요.' : evSource === 'saved' ? `공식 일정 ${fmtDate(evSavedAt)} ${hm(evSavedAt)}에 저장해 둔 공연이에요.` : `공연 일정: ${D.asof} 저장본`;
   $('#venueSel').innerHTML = `<option value="">공연장 고르기</option>` + D.venues.map(v => `<option value="${v.id}" ${v.id === st.venue ? 'selected' : ''}>${esc(v.name)}</option>`).join('');
 }
-$('#layers').innerHTML = [['path','보행로'],['toilet','화장실'],['center','안내센터'],['store','편의점'],['report','현장 제보']].map(([k,l]) => `<button data-k="${k}" aria-pressed="${st.layers[k]}">${l}</button>`).join('');
+$('#layers').innerHTML = [['route','경로'],['path','보행로'],['toilet','화장실'],['center','안내센터'],['store','편의점'],['report','현장 제보']].map(([k,l]) => `<button data-k="${k}" aria-pressed="${st.layers[k]}">${l}</button>`).join('');
 
 function shareURL() {
   const s = curShow(), p = new URLSearchParams({v:st.venue, m:st.mode, w:st.way}); if (st.from && st.way === 'subway') p.set('f', st.from);
@@ -822,7 +862,8 @@ document.addEventListener('click', e => {
   if (b.dataset.mode) { st.mode = b.dataset.mode; save(); render(); }
   else if (b.dataset.way) { st.way = b.dataset.way; save(); render(); }
   else if (b.dataset.tab) setTab(b.dataset.tab);
-  else if (b.dataset.k) { st.layers[b.dataset.k] = !st.layers[b.dataset.k]; b.setAttribute('aria-pressed', st.layers[b.dataset.k]); drawMap(); }
+  else if (b.dataset.k) { if (b.dataset.k === 'route') { const on = st.layers.route && st.mapExit !== 'off'; st.layers.route = !on; if (!on) st.mapExit = null; } else st.layers[b.dataset.k] = !st.layers[b.dataset.k]; syncLayerBtns(); drawMap(); }
+  else if (b.id === 'locBtn') toggleLoc();
   else if (b.id === 'openSheet' || b.dataset.open !== undefined) { renderShows(); $('#sheet').showModal(); }
   else if (b.id === 'sheetX') $('#sheet').close();
   else if (b.classList.contains('show')) { dropLink(); st.show = shows[+b.dataset.i]; st.venue = st.show.venue; if ($('#sheet').open) $('#sheet').close(); render(); scrollTo({top:0, behavior:'smooth'}); }

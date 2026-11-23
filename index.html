@@ -103,6 +103,8 @@ ul.plain{margin:0 0 6px;padding-left:18px}
 .follow .fb .i{width:1.1rem;height:1.1rem;flex:none}.follow .fc{color:var(--mute);font-size:0.875rem}
 .follow .fb{grid-column:1/-1;display:flex;gap:6px}.follow .fb button{flex:1;min-height:44px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:4px}.follow .fb button[disabled]{opacity:.45}.follow .fb button[data-fnext]{background:var(--blueBg);color:#fff;border-color:var(--blueBg)}
 .follow .fnote{grid-column:1/-1;margin:0;font-size:0.8125rem;color:var(--mute)}
+.zoom button[aria-pressed=true]{background:var(--blueBg);color:#fff;border-color:var(--blueBg)}
+.exitbtn{cursor:pointer}.exitbtn:focus{outline:none}.exitbtn:focus-visible rect{stroke:#111;stroke-width:5}
 #toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translate(-50%,20px);max-width:min(92vw,520px);background:var(--ink);color:var(--bg);padding:12px 16px;border-radius:12px;font-size:0.9375rem;opacity:0;pointer-events:none;transition:.25s;z-index:50;word-break:break-all}#toast.on{opacity:1;transform:translate(-50%,0)}
 .change{margin-top:12px;width:100%;min-height:46px;border-radius:12px;border:0;background:var(--blueSoft);color:var(--blue);font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
 
@@ -258,7 +260,7 @@ footer li{margin:4px 0}
      <div class="cross" aria-hidden="true"></div>
      <div class="follow" id="followCard" role="region" aria-label="지도 따라가기" hidden></div>
      <div class="pickbar" id="pickbar" hidden><p>지도를 움직이거나 눌러서 <b>+ 표시</b>를 그 장소에 맞추세요.</p><div><button id="pickOk" class="pri">이 위치 알리기</button><button id="pickMe">내 위치로</button><button id="pickCancel">취소</button></div></div>
-     <div class="zoom"><button id="zin" aria-label="확대">+</button><button id="zout" aria-label="축소">−</button><button id="zfit" aria-label="경로에 맞추기"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button></div>
+     <div class="zoom"><button id="zin" aria-label="확대">+</button><button id="zout" aria-label="축소">−</button><button id="locBtn" aria-label="내 위치 보기" aria-pressed="false"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg></button><button id="zfit" aria-label="경로에 맞추기"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button></div>
     </div>
     <div class="layers" id="layers" aria-label="지도에 표시할 것"></div>
     <p class="mapnote" id="mapnote"></p>
@@ -302,9 +304,9 @@ footer li{margin:4px 0}
  <select id="venueSel" aria-label="공연장 선택"></select>
 </div></dialog>
 
-<script src="data.js?v=20261123o"></script>
-<script src="config.js?v=20261123o"></script>
-<script src="events.js?v=20261123o"></script>
-<script src="app.js?v=20261123o"></script>
+<script src="data.js?v=20261123p"></script>
+<script src="config.js?v=20261123p"></script>
+<script src="events.js?v=20261123p"></script>
+<script src="app.js?v=20261123p"></script>
 </body>
 </html>

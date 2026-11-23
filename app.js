@@ -330,15 +330,29 @@ function pickedRoute() {
   return pickedRoute.v;
 }
 function mainExit(v) { const R = pickedRoute(); return R ? R[0].x : exitsFor(v)[0]; }
+// 길찾기 앱 연결: 출발지 = 저장한 출발역(없으면 현재 위치), 목적지 = 도착역 엘리베이터 출구
+const isMobile = window.__forceMobile || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+function mapLinks(x) {
+  const dn = `${x.s.name} ${x.e.no}번 출구(엘리베이터)`, [dl, dg] = x.e.ll;
+  const o = st.from && D.metro.co[st.from] ? {n:st.from.replace(/\(.*\)/, '') + '역', ll:D.metro.co[st.from]} : null;
+  const E = encodeURIComponent;
+  const kakao = o ? `https://map.kakao.com/link/by/traffic/${E(o.n)},${o.ll[0]},${o.ll[1]}/${E(dn)},${dl},${dg}` : `https://map.kakao.com/link/to/${E(dn)},${dl},${dg}`;
+  const naver = `nmap://route/public?${o ? `slat=${o.ll[0]}&slng=${o.ll[1]}&sname=${E(o.n)}&` : ''}dlat=${dl}&dlng=${dg}&dname=${E(dn)}&appname=${E(location.origin + location.pathname)}`;
+  const google = `https://www.google.com/maps/dir/?api=1${o ? `&origin=${o.ll[0]},${o.ll[1]}` : ''}&destination=${dl},${dg}&travelmode=transit`;
+  return `<div class="maplinks"><p class="ml-t">길찾기 앱으로 열기 <span class="meta">${o ? `출발: ${esc(o.n)} → ` : '출발: 현재 위치 → '}도착: ${esc(dn)}</span></p><div>
+    <a class="mlink k" target="_blank" rel="noopener" href="${kakao}">카카오맵</a>
+    ${isMobile ? `<a class="mlink n" href="${naver}">네이버 지도</a>` : ''}
+    <a class="mlink g" target="_blank" rel="noopener" href="${google}">구글 지도</a></div>
+    <p class="meta">저상버스 예약이 필요하면 서울시 '서울동행맵' 앱을 함께 쓰세요.${isMobile ? '' : ' 네이버 지도는 휴대폰에서 열 수 있어요.'}</p></div>`;
+}
 function fromHTML(R, T) {
   const opts = metroGraph().names.map(n => `<option value="${esc(n)}">`).join('');
   const form = `<form class="fromform" id="fromForm"><label for="fromIn">집 근처 출발역</label><div><input id="fromIn" list="stList" autocomplete="off" placeholder="예: 노원" value="${esc(st.from || '')}"><button type="submit">확인</button>${st.from ? '<button type="button" id="fromClear">지우기</button>' : ''}</div><datalist id="stList">${opts}</datalist><p class="meta" id="fromErr" role="alert"></p></form>`;
-  if (!st.from) return `<div class="fromcard">${form}<p class="meta">출발역을 고르면 출발역·환승역 엘리베이터 상태와 갈아탈 곳까지 함께 알려 드려요.</p></div>`;
+  if (!st.from) return `<div class="fromcard">${form}<p class="meta">출발역을 고르면 출발역·환승역 엘리베이터 상태와 갈아탈 곳까지 함께 알려 드려요.</p>${mapLinks(mainExit(venue()))}</div>`;
   if (!R) return `<div class="fromcard">${form}<p class="meta">${esc(st.from)}역에서 가는 지하철 경로를 찾지 못했어요.</p></div>`;
   const r = R[0], board = T.arrive ? addMin(T.arrive, -Math.round(r.ride + r.xfer)) : null;
   return `<div class="fromcard">${form}<p><b>${esc(st.from)}역 → ${esc(r.x.s.name)}</b> · 지하철 약 ${Math.round(r.ride + r.xfer)}분 · 환승 ${r.legs.length - 1}번${board ? ` · <b>${hm(board)}</b>까지 ${esc(st.from)}역에서 타기` : ''}</p>
-  <p class="links"><a class="extlink" target="_blank" rel="noopener" href="https://map.kakao.com/link/to/${encodeURIComponent(`${r.x.s.name} ${r.x.e.no}번 출구 엘리베이터`)},${r.x.e.ll[0]},${r.x.e.ll[1]}">카카오맵에서 집부터 길찾기</a></p>
-  <p class="meta">집에서 출발역까지는 카카오맵이나 서울동행맵(저상버스 예약)을 함께 쓰세요. 카카오맵 목적지는 도착역 엘리베이터 출구로 정해져 있어요.</p></div>`;
+  ${mapLinks(r.x)}</div>`;
 }
 function fromSteps(R) {
   const r = R[0]; let h = '';

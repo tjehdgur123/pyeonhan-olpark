@@ -26,8 +26,8 @@ function setFs(n) { fsLevel = +n || 0; const r = document.documentElement; r.cla
 // ---------- 상태 ----------
 const MODES = [{id:'wheel', label:'휠체어', speed:55, icon:I.wheel}, {id:'stroller', label:'유아차', speed:60, icon:I.stroller}, {id:'slow', label:'걷기 힘듦', speed:40, icon:I.slow}];
 const WAYS = [{id:'subway', label:'지하철', icon:I.train}, {id:'car', label:'자동차', icon:I.car}];
-const st = {show:null, venue:null, mode:'wheel', way:'subway', tab:'route', layers:{toilet:true, center:true, store:false, path:true}};
-const live = {parking:null, elev:null, ramp:null};
+const st = {show:null, venue:null, mode:'wheel', way:'subway', tab:'route', layers:{toilet:true, center:true, store:false, path:true, report:true}};
+const live = {parking:null, elev:null, ramp:null, reports:null};
 try { const s = JSON.parse(localStorage.getItem('pyeonhan') || '{}'); if (s.mode) st.mode = s.mode; if (s.way) st.way = s.way; if (s.fs) setFs(s.fs); else if (s.big) setFs(1); } catch(e) {}
 // 공유 링크: ?v=공연장&t=시작시각&n=공연명&m=이동방법&w=교통수단
 const Q = new URLSearchParams(location.search), linkShow = (() => {
@@ -278,6 +278,8 @@ function renderRoute() {
     const alts = exitsFor(v).filter(x => !seen.has(x.s.id) && seen.add(x.s.id)).slice(0, 3);
     h += `<details class="alt"><summary>다른 역으로 가기 (${alts.length})</summary>${alts.map(x => `<div class="altrow"><p style="margin:0">${pill(x.s)} <b>${esc(x.s.name)}</b> <span class="exit">${x.e.no}</span>번 출구 → 약 ${mins(x.p.m)}분</p>${x.s.warn ? `<p class="meta">${esc(x.s.warn)}</p>` : ''}${elevNote(x.s)}</div>`).join('')}</details>`;
   }
+  const near = routeReports();
+  if (near.length) h = h.replace('<ol class="steps">', `<div class="note warn">${I.info}<span>최근 이 길 근처에 현장 제보가 ${near.length}건 있어요: ${near.slice(0, 3).map(r => `<b>${esc(RK[r.kind])}</b>(${ago(r.at)})`).join(', ')}. <button class="linkbtn" data-tab="map">지도에서 보기</button></span></div><ol class="steps">`);
   $('#pane-route').innerHTML = h;
   markSpeaking();
 }
@@ -362,6 +364,7 @@ function drawMap() {
   if (route) g += `<polyline class="route" points="${pts(route)}" stroke-opacity=".25" stroke-width="12"/><polyline class="route anim" points="${pts(route)}"/>`;
   if (st.layers.toilet) g += D.fac.filter(f => f.k === '화장실').map(f => mark(f.ll, `<rect x="-11" y="-11" width="22" height="22" rx="5" fill="#2b8a3e"/><text y="4" font-size="11" fill="#fff" text-anchor="middle" font-weight="700">WC</text>`, `화장실 · ${f.p} ${f.d}`)).join('');
   if (st.layers.store) g += D.fac.filter(f => /편의점|식음료/.test(f.k)).map(f => mark(f.ll, `<circle r="8" fill="#7048e8" stroke="#fff" stroke-width="2"/>`, `${f.k} · ${f.p}`)).join('');
+  if (st.layers.report && live.reports) g += live.reports.map(r => mark(r.ll, r.kind === 'good' ? `<circle r="11" fill="#2b8a3e" stroke="#fff" stroke-width="2.5"/><path d="M-5 0l3.5 3.5L5-4" stroke="#fff" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>` : `<path d="M0-14 13 10H-13z" fill="#d9480f" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/><text y="7" font-size="14" font-weight="700" fill="#fff" text-anchor="middle">!</text>`, `현장 제보 · ${RK[r.kind]}${r.text ? ' · ' + r.text : ''} (${ago(r.at)})`)).join('');
   if (st.layers.center) g += D.centers.map(c => mark([c.lat,c.lng], `<circle r="15" fill="var(--yel)" stroke="#111" stroke-width="1.5"/><text y="6" font-size="17" text-anchor="middle" font-weight="700" fill="#111">i</text>`, `${c.name} · 휠체어 무료 대여`)).join('');
   g += D.venues.map(x => { const on = x.id === v.id; return mark(vll(x), `<circle r="${on ? 15 : 9}" fill="${on ? 'var(--blueBg)' : 'var(--mute)'}" stroke="#fff" stroke-width="3"/><text y="${on ? -24 : -15}" font-size="${on ? 24 : 16}" font-weight="${on ? 700 : 500}" text-anchor="middle" fill="var(--ink)" paint-order="stroke" stroke="var(--bg)" stroke-width="5">${esc(x.name)}</text>`, x.name); }).join('');
   const best = has && st.way === 'subway' ? exitsFor(v)[0].id : '';
@@ -386,10 +389,15 @@ function zoom(f, cx, cy) { const nw = Math.min(W*1.6, Math.max(120, vb.w * f)), 
 { // 드래그·휠·핀치
   const wrap = $('#mapwrap'), ptr = new Map(); let last = null, pinch = null;
   const toSvg = (cx, cy) => { const r = wrap.getBoundingClientRect(); return [vb.x + (cx - r.left) / r.width * vb.w, vb.y + (cy - r.top) / r.height * vb.h]; };
-  wrap.addEventListener('pointerdown', e => { if (e.target.closest('.zoom')) return; wrap.setPointerCapture(e.pointerId); ptr.set(e.pointerId, [e.clientX, e.clientY]); wrap.classList.add('drag'); last = [e.clientX, e.clientY]; if (ptr.size === 2) { const [a, b] = [...ptr.values()]; pinch = Math.hypot(a[0]-b[0], a[1]-b[1]); } });
+  wrap.addEventListener('pointerdown', e => { if (e.target.closest('.zoom, #pickbar')) return; wrap.setPointerCapture(e.pointerId); ptr.set(e.pointerId, [e.clientX, e.clientY]); wrap.classList.add('drag'); last = [e.clientX, e.clientY]; if (ptr.size === 2) { const [a, b] = [...ptr.values()]; pinch = Math.hypot(a[0]-b[0], a[1]-b[1]); } });
   wrap.addEventListener('pointermove', e => { if (!ptr.has(e.pointerId)) return; ptr.set(e.pointerId, [e.clientX, e.clientY]); const r = wrap.getBoundingClientRect();
     if (ptr.size === 2 && pinch) { const [a, b] = [...ptr.values()], d = Math.hypot(a[0]-b[0], a[1]-b[1]); const c = toSvg((a[0]+b[0])/2, (a[1]+b[1])/2); zoom(pinch / d, c[0], c[1]); pinch = d; return; }
     vb.x -= (e.clientX - last[0]) / r.width * vb.w; vb.y -= (e.clientY - last[1]) / r.height * vb.h; last = [e.clientX, e.clientY]; setVB(); });
+  let downAt = null;
+  wrap.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; }, true);
+  wrap.addEventListener('click', e => { if (!pick || !downAt || e.target.closest('.zoom, #pickbar')) return; if (Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return; const c = toSvg(e.clientX, e.clientY); vb.x = c[0] - vb.w / 2; vb.y = c[1] - vb.h / 2; setVB(); });
+  // 키보드로 지도 옮기기 (화살표)
+  wrap.addEventListener('keydown', e => { const d = {ArrowLeft:[-1,0], ArrowRight:[1,0], ArrowUp:[0,-1], ArrowDown:[0,1]}[e.key]; if (!d || e.target !== wrap) return; e.preventDefault(); vb.x += d[0] * vb.w * 0.12; vb.y += d[1] * vb.h * 0.12; setVB(); });
   const up = e => { ptr.delete(e.pointerId); if (ptr.size < 2) pinch = null; if (!ptr.size) wrap.classList.remove('drag'); else last = [...ptr.values()][0]; };
   wrap.addEventListener('pointerup', up); wrap.addEventListener('pointercancel', up);
   wrap.addEventListener('wheel', e => { e.preventDefault(); const c = toSvg(e.clientX, e.clientY); zoom(e.deltaY > 0 ? 1.15 : 1/1.15, c[0], c[1]); }, {passive:false});
@@ -436,7 +444,7 @@ function renderShows() {
   $('#evSrc').textContent = evSource === 'live' ? '올림픽공원 공식 일정에서 방금 불러온 공연이에요.' : evSource === 'saved' ? `공식 일정 ${fmtDate(evSavedAt)} ${hm(evSavedAt)}에 저장해 둔 공연이에요.` : `공연 일정: ${D.asof} 저장본`;
   $('#venueSel').innerHTML = `<option value="">공연장 고르기</option>` + D.venues.map(v => `<option value="${v.id}" ${v.id === st.venue ? 'selected' : ''}>${esc(v.name)}</option>`).join('');
 }
-$('#layers').innerHTML = [['path','보행로'],['toilet','화장실'],['center','안내센터'],['store','편의점']].map(([k,l]) => `<button data-k="${k}" aria-pressed="${st.layers[k]}">${l}</button>`).join('');
+$('#layers').innerHTML = [['path','보행로'],['toilet','화장실'],['center','안내센터'],['store','편의점'],['report','현장 제보']].map(([k,l]) => `<button data-k="${k}" aria-pressed="${st.layers[k]}">${l}</button>`).join('');
 
 function shareURL() {
   const s = curShow(), p = new URLSearchParams({v:st.venue, m:st.mode, w:st.way});
@@ -484,6 +492,57 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
 function saveEvents(ev) { try { localStorage.setItem('pyeonhanEvents', JSON.stringify({at:Date.now(), ev})); } catch(e) {} }
 function loadSavedEvents() { try { const s = JSON.parse(localStorage.getItem('pyeonhanEvents') || 'null'); if (s && Date.now() - s.at < 14 * 864e5 && s.ev.length) return s; } catch(e) {} return null; }
 
+// ---------- 현장 제보 ----------
+const RK = {step:'턱·계단이 있어요', slope:'경사가 가팔라요', blocked:'길이 막혔어요(공사·행사)', elevator:'엘리베이터가 멈췄어요', toilet:'장애인 화장실을 못 써요', good:'휠체어로 다니기 좋아요'};
+const ago = t => { const m = (Date.now() - t) / 60000; return m < 60 ? `${Math.max(1, Math.round(m))}분 전` : m < 1440 ? `${Math.round(m / 60)}시간 전` : `${Math.round(m / 1440)}일 전`; };
+const llFromSvg = (x, y) => [B.n - y / ky, x / kx + B.w];
+function routeReports() {
+  if (!live.reports || !venue() || st.way !== 'subway') return [];
+  const pts = exitsFor(venue())[0].p.pts;
+  return live.reports.filter(r => r.kind !== 'good' && pts.some(p => dist(p, r.ll) < 40));
+}
+async function loadReports() {
+  if (!C.LIVE_API || !navigator.onLine) return;
+  try { const r = await fetch(C.LIVE_API + '/reports'); if (!r.ok) throw 0; live.reports = (await r.json()).items || []; $('#reportBtn').hidden = false; }
+  catch(e) { live.reports = null; $('#reportBtn').hidden = true; }
+  renderReports(); if (venue()) { renderRoute(); } drawMap();
+}
+function renderReports() {
+  const box = $('#reports'); if (!live.reports) { box.innerHTML = ''; return; }
+  const v = venue(), L = [...live.reports].sort((a, b) => v ? dist(a.ll, vll(v)) - dist(b.ll, vll(v)) : b.at - a.at).slice(0, 12);
+  box.innerHTML = `<h3>최근 30일 현장 제보 <small>${live.reports.length}건</small></h3>` + (L.length ? `<ul class="rlist">${L.map(r => `<li><span class="rk ${r.kind === 'good' ? 'g' : ''}">${esc(RK[r.kind])}</span> <span class="meta">${ago(r.at)}${v ? ` · ${esc(v.name)}에서 약 ${r10(dist(r.ll, vll(v)))}m` : ''}</span>${r.text ? `<p>${esc(r.text)}</p>` : ''}<div class="rb"><button data-vote="ok" data-id="${r.id}">저도 봤어요 ${r.ok || ''}</button><button data-vote="flag" data-id="${r.id}">지금은 아니에요</button></div></li>`).join('')}</ul>` : '<p class="meta">아직 제보가 없어요. 다니다 불편한 곳이 있으면 알려 주세요.</p>')
+    + `<p class="meta">제보는 이용자가 남긴 정보라 사실과 다를 수 있어요. 30일 뒤 사라지고, '지금은 아니에요'가 많으면 숨겨져요.</p>`;
+}
+let pick = false;
+function setPick(on) {
+  pick = on; $('#mapwrap').classList.toggle('picking', on); $('#pickbar').hidden = !on; $('#reportBtn').hidden = on || !live.reports;
+  if (on) { setTab('map'); $('#pickOk').focus(); }
+}
+function openReport(ll) {
+  if (ll[0] < B.s || ll[0] > B.n || ll[1] < B.w || ll[1] > B.e) { toast('올림픽공원 안이나 가까운 역 근처를 골라 주세요.'); return; }
+  const f = $('#reportForm'); f.reset(); f.dataset.ll = ll.join(','); $('#rpErr').textContent = '';
+  $('#rpWhere').textContent = venue() ? `${venue().name}에서 약 ${r10(dist(ll, vll(venue())))}m 떨어진 곳` : '지도에서 고른 곳';
+  $('#report').showModal();
+}
+async function sendReport(e) {
+  e.preventDefault();
+  const f = e.target, kind = (f.querySelector('input[name=kind]:checked') || {}).value, [lat, lng] = f.dataset.ll.split(',').map(Number);
+  if (!kind) { $('#rpErr').textContent = '어떤 상태인지 하나 골라 주세요.'; return; }
+  const btn = f.querySelector('button[type=submit]'); btn.disabled = true;
+  try {
+    const r = await fetch(C.LIVE_API + '/reports', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({kind, lat, lng, text:f.text.value})});
+    if (r.status === 429) throw new Error('오늘은 제보를 더 남길 수 없어요. 내일 다시 알려 주세요.');
+    if (!r.ok) throw new Error('보내지 못했어요. 잠시 뒤 다시 해 주세요.');
+    $('#report').close(); setPick(false); toast('고마워요! 다른 분들께 30일 동안 보여요.'); loadReports();
+  } catch(err) { $('#rpErr').textContent = err.message || '보내지 못했어요.'; }
+  finally { btn.disabled = false; }
+}
+async function vote(id, kind, b) {
+  b.disabled = true;
+  try { const r = await fetch(`${C.LIVE_API}/reports/${id}/${kind}`, {method:'POST'}); const j = await r.json(); toast(j.same ? '이미 반영했어요.' : kind === 'ok' ? '확인해 주셔서 고마워요.' : '알려 주셔서 고마워요.'); loadReports(); }
+  catch(e) { toast('보내지 못했어요.'); b.disabled = false; }
+}
+
 // 이벤트
 document.addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
@@ -499,6 +558,12 @@ document.addEventListener('click', e => {
   else if (b.dataset.say !== undefined) { const stEl = b.closest('.step'), pane = b.closest('.pane').id.slice(5), idx = [...document.querySelectorAll(`#pane-${pane} .step`)].indexOf(stEl); sayList(pane, [{step:idx, text:speakable(stEl)}], 0); }
   else if (b.id === 'mapsay') { if (sp.on && sp.pane === 'map') { stopSpeak(); return; } const items = [...$('#mapdesc').querySelectorAll('li')].map(li => ({step:-1, text:speakable(li)})); const c = centerFor(venue()), tl = toiletsNear(venue()); items.unshift({step:-1, text:`지도 안내예요. 파란 선은 계단을 피한 길이에요.`}); items.push({step:-1, text:`공연장에서 가장 가까운 화장실은 ${tl[0].p}, 약 ${r10(tl[0].m)}미터 거리예요. 휠체어 대여는 ${c.name}에서 해요.`}); sayList('map', items, 0); }
   else if (b.id === 'shareBtn') shareTrip();
+  else if (b.id === 'reportBtn') setPick(true);
+  else if (b.id === 'pickCancel') setPick(false);
+  else if (b.id === 'pickOk') openReport(llFromSvg(vb.x + vb.w / 2, vb.y + vb.h / 2));
+  else if (b.id === 'pickMe') { if (!navigator.geolocation) { toast('이 기기에서는 위치를 쓸 수 없어요.'); return; } navigator.geolocation.getCurrentPosition(p => { const ll = [p.coords.latitude, p.coords.longitude]; if (ll[0] < B.s || ll[0] > B.n || ll[1] < B.w || ll[1] > B.e) { toast('지금 위치가 올림픽공원 밖이에요. 지도에서 골라 주세요.'); return; } const q = P(ll); vb.x = q[0] - vb.w / 2; vb.y = q[1] - vb.h / 2; setVB(); }, () => toast('위치를 가져오지 못했어요. 지도에서 골라 주세요.'), {enableHighAccuracy:true, timeout:8000}); }
+  else if (b.id === 'rpX') $('#report').close();
+  else if (b.dataset.vote) vote(b.dataset.id, b.dataset.vote, b);
   else if (b.id === 'installBtn' && installEvt) { installEvt.prompt(); installEvt.userChoice.finally(() => { installEvt = null; if (!venue()) renderStart(); }); }
   else if (b.id === 'bigBtn') { setFs((fsLevel + 1) % 3); save(); drawMap(); }
 });
@@ -520,6 +585,9 @@ $('#sources').innerHTML = `<ul>
 { const s = loadSavedEvents(); if (s) { evSource = 'saved'; evSavedAt = new Date(s.at); setShows(s.ev); } }
 netState();
 renderShows(); render(); setTab(location.hash.slice(1) || 'route'); st.started = true;
+$('#reportForm').addEventListener('submit', sendReport);
+$('#reportForm').addEventListener('change', () => { $('#rpErr').textContent = ''; });
+loadReports();
 (async () => { try { const j = await fetch(C.PARKING_API).then(r => r.json()); const p = +j[0].parking_sum; if (p >= 0) { live.parking = {p, at:hm(new Date()) + ' 실시간'}; if (st.way === 'car' && venue()) renderRoute(); } } catch(e) {} })();
 (async () => { try { if (!C.LIVE_API) throw 0; const j = await fetch(C.LIVE_API + '/elevators').then(r => r.json()); live.elev = j.items && j.items.length ? j : 'fail'; } catch(e) { live.elev = 'fail'; } if (venue()) renderRoute(); })();
 if (window.loadLiveEvents) loadLiveEvents(D.venues).then(ev => { if (ev.length) { evSource = 'live'; saveEvents(ev); setShows(ev); renderShows(); render(); } }).catch(() => {});

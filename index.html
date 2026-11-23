@@ -65,6 +65,14 @@ svg.i{width:1.2em;height:1.2em;flex:none;vertical-align:-.22em}
 .offline{background:var(--warnBg);color:var(--warn);padding:10px 16px;font-size:0.9375rem;text-align:center;border-bottom:1px solid var(--line)}
 .install{margin-top:12px;padding:12px 14px;border:1px dashed var(--line);border-radius:12px;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}.install p{margin:0;font-size:0.9375rem}.install button{min-height:44px;padding:0 14px;border-radius:10px;border:0;background:var(--blueBg);color:#fff;font-weight:700;cursor:pointer}
 .lt{margin:14px 0;padding:14px;border:1px solid var(--line);border-radius:12px}.lt h3{margin:0 0 8px;font-size:1.0625rem}.lt h3 small{display:block;font-weight:500;color:var(--mute);font-size:0.875rem}.lt table{width:100%;border-collapse:collapse;font-size:0.9375rem}.lt th,.lt td{text-align:left;padding:6px 4px;border-bottom:1px solid var(--line)}.lt thead th{color:var(--mute);font-weight:500;font-size:0.8125rem}.lt tr.sub th,.lt tr.sub td{color:var(--mute);font-weight:400}.lt tr.sub th{padding-left:14px}.lt .note{margin:0 0 10px}.lt caption{text-align:left;font-weight:700;padding:6px 0;font-size:0.9375rem}.lt details{margin-top:10px}.lt summary{cursor:pointer;min-height:44px;display:flex;align-items:center;color:var(--blue);font-weight:700}.lt table+table{margin-top:12px}.lt tr.gap td{border:0;padding:4px}.lt th small{color:var(--mute);font-weight:400}
+.cross{display:none;position:absolute;left:50%;top:50%;width:34px;height:34px;transform:translate(-50%,-50%);pointer-events:none;z-index:2}.cross::before,.cross::after{content:"";position:absolute;background:#d9480f;border-radius:2px;box-shadow:0 0 0 2px #fff}.cross::before{left:50%;top:0;width:4px;height:100%;transform:translateX(-50%)}.cross::after{top:50%;left:0;height:4px;width:100%;transform:translateY(-50%)}.mapwrap.picking .cross{display:block}.mapwrap.picking{cursor:crosshair}
+.pickbar{position:absolute;left:8px;right:8px;bottom:8px;background:var(--surface);border-radius:12px;box-shadow:var(--shadow);padding:10px 12px;z-index:3}.pickbar p{margin:0 0 8px;font-size:0.9375rem}.pickbar div{display:flex;gap:6px;flex-wrap:wrap}.pickbar button{min-height:44px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-weight:700;cursor:pointer}.pickbar button.pri{background:var(--blueBg);border-color:var(--blueBg);color:#fff}
+.mapwrap:focus-visible{outline:3px solid var(--yel);outline-offset:-3px}
+.reportrow{padding:0 12px}.reports{padding:4px 12px 8px}.reports h3{font-size:1rem;margin:12px 0 6px}.reports h3 small{color:var(--mute);font-weight:500}
+.rlist{list-style:none;margin:0;padding:0}.rlist li{padding:10px 0;border-bottom:1px solid var(--line)}.rlist p{margin:4px 0 0}.rk{font-weight:700;color:var(--warn)}.rk.g{color:var(--ok)}.rb{display:flex;gap:6px;margin-top:6px}.rb button{min-height:40px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;font-size:0.875rem}
+.kinds{border:0;padding:0;margin:8px 0;display:grid;gap:6px}.kinds legend{font-weight:700;margin-bottom:6px}.kinds label{display:flex;gap:10px;align-items:center;min-height:48px;padding:0 12px;border:1.5px solid var(--line);border-radius:12px;cursor:pointer}.kinds label:has(input:checked){border-color:var(--blue);background:var(--blueSoft)}.kinds input{width:20px;height:20px;accent-color:var(--blueBg)}
+.tx{display:grid;gap:6px;font-weight:700;margin-top:8px}.tx textarea{font:inherit;font-weight:400;padding:10px;border-radius:10px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink)}.err{color:#c92a2a;min-height:1.2em;margin:4px 0}
+.linkbtn{background:none;border:0;padding:0;color:var(--blue);font:inherit;font-weight:700;text-decoration:underline;cursor:pointer}
 #toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translate(-50%,20px);max-width:min(92vw,520px);background:var(--ink);color:var(--bg);padding:12px 16px;border-radius:12px;font-size:0.9375rem;opacity:0;pointer-events:none;transition:.25s;z-index:50;word-break:break-all}#toast.on{opacity:1;transform:translate(-50%,0)}
 .change{margin-top:12px;width:100%;min-height:46px;border-radius:12px;border:0;background:var(--blueSoft);color:var(--blue);font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
 
@@ -215,12 +223,16 @@ footer li{margin:4px 0}
   </div>
   <div class="right">
    <section class="card mapcard pane" id="pane-map" role="tabpanel" aria-labelledby="t-map">
-    <div class="mapwrap" id="mapwrap">
+    <div class="mapwrap" id="mapwrap" tabindex="0" aria-label="지도. 화살표 키로 옮기고, 확대·축소 버튼으로 크기를 바꿀 수 있어요.">
      <svg id="map" role="img" aria-labelledby="mapTitle"><title id="mapTitle">올림픽공원 지도</title></svg>
+     <div class="cross" aria-hidden="true"></div>
+     <div class="pickbar" id="pickbar" hidden><p>지도를 움직이거나 눌러서 <b>+ 표시</b>를 그 장소에 맞추세요.</p><div><button id="pickOk" class="pri">이 위치 알리기</button><button id="pickMe">내 위치로</button><button id="pickCancel">취소</button></div></div>
      <div class="zoom"><button id="zin" aria-label="확대">+</button><button id="zout" aria-label="축소">−</button><button id="zfit" aria-label="경로에 맞추기"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button></div>
     </div>
     <div class="layers" id="layers" aria-label="지도에 표시할 것"></div>
     <p class="mapnote" id="mapnote"></p>
+    <div class="reportrow"><button class="change" id="reportBtn" hidden>이곳 상태 알리기 (턱·경사·고장 제보)</button></div>
+    <section class="reports" id="reports" aria-label="현장 제보"></section>
     <div style="padding:0 12px 12px"><button class="sayall" id="mapsay" hidden><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4zM16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg> 지도 설명 듣기</button><div id="mapdesc" style="margin-top:12px"></div></div>
    </section>
   </div>
@@ -235,6 +247,22 @@ footer li{margin:4px 0}
  <button role="tab" data-tab="after" aria-controls="pane-after"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>공연 후</button>
 </div></nav>
 
+<dialog id="report" aria-labelledby="rpTitle"><form class="sheet" id="reportForm">
+ <header><h2 id="rpTitle">이곳 상태 알리기</h2><button type="button" class="x" id="rpX" aria-label="닫기">×</button></header>
+ <p class="meta" id="rpWhere"></p>
+ <fieldset class="kinds"><legend>어떤 상태인가요?</legend>
+  <label><input type="radio" name="kind" value="step"> 턱·계단이 있어요</label>
+  <label><input type="radio" name="kind" value="slope"> 경사가 가팔라요</label>
+  <label><input type="radio" name="kind" value="blocked"> 길이 막혔어요(공사·행사)</label>
+  <label><input type="radio" name="kind" value="elevator"> 엘리베이터가 멈췄어요</label>
+  <label><input type="radio" name="kind" value="toilet"> 장애인 화장실을 못 써요</label>
+  <label><input type="radio" name="kind" value="good"> 휠체어로 다니기 좋아요</label>
+ </fieldset>
+ <label class="tx">한 줄 설명 (선택, 80자)<textarea name="text" maxlength="80" rows="2" placeholder="예: 화장실 앞 경사로 공사 중"></textarea></label>
+ <p class="meta">이름·전화번호 같은 개인정보는 적지 마세요. 제보는 누구나 볼 수 있고 30일 뒤 사라져요.</p>
+ <p class="err" id="rpErr" role="alert"></p>
+ <button type="submit" class="pick">보내기</button>
+</form></dialog>
 <dialog id="sheet" aria-labelledby="sheetTitle"><div class="sheet">
  <header><h2 id="sheetTitle">어떤 공연에 가세요?</h2><button class="x" id="sheetX" aria-label="닫기">×</button></header>
  <p class="src" id="evSrc"></p>
@@ -243,9 +271,9 @@ footer li{margin:4px 0}
  <select id="venueSel" aria-label="공연장 선택"></select>
 </div></dialog>
 
-<script src="data.js?v=20261123k"></script>
-<script src="config.js?v=20261123k"></script>
-<script src="events.js?v=20261123k"></script>
-<script src="app.js?v=20261123k"></script>
+<script src="data.js?v=20261123l"></script>
+<script src="config.js?v=20261123l"></script>
+<script src="events.js?v=20261123l"></script>
+<script src="app.js?v=20261123l"></script>
 </body>
 </html>

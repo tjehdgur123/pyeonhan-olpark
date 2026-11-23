@@ -3,6 +3,17 @@ const D = window.DATA, C = window.CONFIG || {};
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const I = {
+  elev: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="1"/><path d="m10 10 2-2 2 2M10 14l2 2 2-2"/></svg>',
+  xfer: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3l4 4-4 4M21 7H9M7 21l-4-4 4-4M3 17h12"/></svg>',
+  walk: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4" r="2"/><path d="M7 21l3-4M16 21l-2-4-3-3 1-6M6 12l2-3 4-1 3 3 3 1"/></svg>',
+  map: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l6-3 6 3 6-3v13l-6 3-6-3-6 3z"/><path d="M9 4v13M15 7v13"/></svg>',
+  flag: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>',
+  chev: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
+  park: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M10 16V8h3a2 2 0 0 1 0 4h-3"/></svg>',
+  left: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20v-9a3 3 0 0 0-3-3H6M10 4 6 8l4 4"/></svg>',
+  right: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20v-9a3 3 0 0 1 3-3h9M14 4l4 4-4 4"/></svg>',
+  up: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V4M6 10l6-6 6 6"/></svg>',
+  back: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3"/></svg>',
   warn: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3 2 20h20L12 3zM12 10v4M12 17h.01"/></svg>',
   ok: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>',
   info: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>',
@@ -167,7 +178,8 @@ function directions(pts, v, fromLabel) {
   const side = (leg, ll) => { const a = toXY(leg.start), b = toXY(leg.end), p = toXY(ll); return ((b[0]-a[0])*(p[1]-a[1]) - (b[1]-a[1])*(p[0]-a[0])) > 0 ? '왼쪽' : '오른쪽'; };
   const near = leg => { let best = null; for (const p of pois) { if (used.has(p.name)) continue; let d = 1e9; const P0 = toXY(p.ll); for (let k = 1; k < leg.pts.length; k++) { const A = toXY(leg.pts[k-1]), B2 = toXY(leg.pts[k]), dx = B2[0]-A[0], dy = B2[1]-A[1], L2 = dx*dx + dy*dy || 1; const t = Math.max(0, Math.min(1, ((P0[0]-A[0])*dx + (P0[1]-A[1])*dy) / L2)); d = Math.min(d, Math.hypot(A[0] + t*dx - P0[0], A[1] + t*dy - P0[1])); } if (d < 60 && (!best || p.pr < best.pr || (p.pr === best.pr && d < best.d))) best = {...p, d}; } if (best) used.add(best.name); return best; };
   // 3) 문장
-  const out = [];
+  const out = [], turns = [];
+  out.turns = turns;
   legs.forEach((L, i) => {
     let s;
     if (i === 0) s = `${fromLabel}에서 나와 ${compass(L.b)}으로 약 ${r10(L.m)}미터 가세요.`;
@@ -178,9 +190,11 @@ function directions(pts, v, fromLabel) {
     }
     const p = near(L); if (p) s += ` ${side(L, p.ll)}에 ${p.name}${josa(p.name)} 있어요.`
     out.push(s);
+    const d = i ? ((L.b - legs[i-1].b + 540) % 360) - 180 : 0;
+    turns.push({text:s, ll:L.start, end:L.end, pts:L.pts, m:L.m, kind:i === 0 ? 'up' : Math.abs(d) > 135 ? 'back' : d > 0 ? 'right' : 'left', short:i === 0 ? `${compass(L.b)}으로 ${r10(L.m)}m` : `${Math.abs(d) > 135 ? '뒤로 돌아' : d > 0 ? '오른쪽' : '왼쪽'} · ${r10(L.m)}m`, poi:p ? `${side(L, p.ll)}에 ${p.name}` : ''});
   });
   const last = legs[legs.length - 1];
-  if (last) out.push(`${esc(v.name)}에 도착해요.`);
+  if (last) { out.push(`${esc(v.name)}에 도착해요.`); turns.push({text:`${v.name}에 도착해요.`, ll:last.end, end:last.end, pts:[last.end], m:0, kind:'flag', short:'도착', poi:''}); }
   return out;
 }
 
@@ -224,7 +238,7 @@ function renderTrip() {
     ['공연 시작', hm(s.at), ''],
     [s.durSrc === 'official' ? '끝나는 시각' : '끝나는 시각(추정)', hm(T.end), ''],
     ['혼잡 피해 나서기', hm(T.leave) + ' 이후', 'hi']
-  ].map(([a,b,c]) => `<div class="${c}"><small>${a}</small><b>${b}</b></div>`).join('') + (s.durSrc === 'official' ? '' : `<div class="note">끝나는 시각은 ${s.durSrc === 'past' ? '같은 출연자의 지난 공연 소요시간' : '이 공연장 공연들의 보통 소요시간'}(${s.dur}분)으로 추정했어요. 공연정보 API 기준.</div>`)
+  ].map(([a,b,c]) => `<div class="${c}"><small>${a}</small><b>${b}</b></div>`).join('')
   : `<div style="grid-column:1/-1"><small>공연을 고르면 도착·출발 권장 시각을 계산해 드려요.</small></div>`;
 }
 function timesFor() {
@@ -339,11 +353,11 @@ function mapLinks(x) {
   const kakao = o ? `https://map.kakao.com/link/by/traffic/${E(o.n)},${o.ll[0]},${o.ll[1]}/${E(dn)},${dl},${dg}` : `https://map.kakao.com/link/to/${E(dn)},${dl},${dg}`;
   const naver = `nmap://route/public?${o ? `slat=${o.ll[0]}&slng=${o.ll[1]}&sname=${E(o.n)}&` : ''}dlat=${dl}&dlng=${dg}&dname=${E(dn)}&appname=${E(location.origin + location.pathname)}`;
   const google = `https://www.google.com/maps/dir/?api=1${o ? `&origin=${o.ll[0]},${o.ll[1]}` : ''}&destination=${dl},${dg}&travelmode=transit`;
-  return `<div class="maplinks"><p class="ml-t">길찾기 앱으로 열기 <span class="meta">${o ? `출발: ${esc(o.n)} → ` : '출발: 현재 위치 → '}도착: ${esc(dn)}</span></p><div>
+  return `<div class="maplinks"><p class="ml-t">길찾기 앱으로 열기 <span class="meta">${o ? esc(o.n) : '현재 위치'} → ${esc(dn)}</span></p><div>
     <a class="mlink k" target="_blank" rel="noopener" href="${kakao}">카카오맵</a>
     ${isMobile ? `<a class="mlink n" href="${naver}">네이버 지도</a>` : ''}
     <a class="mlink g" target="_blank" rel="noopener" href="${google}">구글 지도</a></div>
-    <p class="meta">저상버스 예약이 필요하면 서울시 '서울동행맵' 앱을 함께 쓰세요.${isMobile ? '' : ' 네이버 지도는 휴대폰에서 열 수 있어요.'}</p></div>`;
+    <p class="meta">저상버스 예약은 '서울동행맵' 앱${isMobile ? '' : ' · 네이버 지도는 휴대폰에서'}</p></div>`;
 }
 function fromHTML(R, T) {
   const opts = metroGraph().names.map(n => `<option value="${esc(n)}">`).join('');
@@ -366,42 +380,122 @@ function fromSteps(R) {
   return h;
 }
 
+// ---------- 가는 길 (노선도 요약 + 한 줄 카드) ----------
+const LINE_COLOR = {'1':'#0052A4','2':'#00A84D','3':'#EF7C1C','4':'#00A5DE','5':'#996CAC','6':'#CD7C2F','7':'#747F00','8':'#E6186C','9':'#BDB092','수인·분당':'#F5A200','경의·중앙':'#77C4A3','신분당':'#D4003B','공항철도':'#0090D2','경강':'#003DA5','경춘':'#0C8E72','서해':'#8FC31F','I2':'#F5A251','인천1':'#7CA8D5','U':'#FDA600','용인':'#56AD2D','김포 골드라인':'#AD8605','Silim':'#6789CA'};
+const chip = (k, t) => `<span class="chip ${k}">${t}</span>`;
+const linePill = ref => `<span class="lp" style="background:${pillBg(LINE_COLOR[ref] || '#666')}">${esc(/^\d$/.test(ref) ? ref : lineName(ref).replace(/선$/, '').slice(0, 4))}</span>`;
+function elevChip(list, loading) {
+  if (loading) return chip('unk', '확인 중');
+  if (!list || !list.length) return chip('unk', '정보 없음');
+  const s = list.filter(x => x.status === 'S').length;
+  return s ? chip('bad', `${s}대 멈춤`) : chip('ok', '정상');
+}
+function arrElev(S) {
+  if (!live.elev) return 'loading'; if (live.elev === 'fail') return null;
+  const m = live.elev.items.filter(x => x.station === S.name.replace('역', '') && x.line === S.line); return m.length ? m : null;
+}
+function row(icon, title, sub, side, body, icCls, extra) {
+  const head = `<span class="ic ${icCls || ''}" aria-hidden="true">${icon}</span><span class="tx"><b>${title}</b>${sub ? `<small>${sub}</small>` : ''}</span>${side || ''}`;
+  if (!body) return `<li class="step srow"><div class="sum">${head}</div></li>`;
+  return `<li class="step srow${extra ? ' has-x' : ''}"><details><summary>${head}<span class="chev" aria-hidden="true">${I.chev}</span></summary><div class="body">${body}${SPEECH ? `<button class="say" data-say aria-label="이 단계 소리로 듣기">${I.spk}<span>듣기</span></button>` : ''}</div></details>${extra || ''}</li>`;
+}
+function diagram(nodes) {
+  // nodes: [{name, seg:{color, label, dash}}] — seg는 다음 노드까지의 구간
+  const n = nodes.length, W = 330, x = i => 18 + i * (W - 36) / (n - 1);
+  let g = '', t = '';
+  nodes.forEach((nd, i) => {
+    if (i < n - 1) { const s = nd.seg; g += `<line x1="${x(i)}" y1="24" x2="${x(i+1)}" y2="24" stroke="${s.color}" stroke-width="${s.dash ? 3 : 7}" stroke-linecap="round" ${s.dash ? 'stroke-dasharray="2 6"' : ''}/>`; t += `<text x="${(x(i) + x(i+1)) / 2}" y="12" text-anchor="middle" class="dg-l">${esc(s.label)}</text>`; }
+  });
+  nodes.forEach((nd, i) => {
+    const last = i === n - 1;
+    g += nd.exit ? `<rect x="${x(i) - 10}" y="14" width="20" height="20" rx="5" fill="#ffc20e" stroke="#111" stroke-width="1"/><text x="${x(i)}" y="29" text-anchor="middle" class="dg-x">${esc(nd.exit)}</text>`
+      : `<circle cx="${x(i)}" cy="24" r="${last ? 8 : 7}" fill="${last ? '#0b4fa3' : 'var(--surface)'}" stroke="${last ? '#0b4fa3' : (nodes[i-1] || nd).seg?.color || '#666'}" stroke-width="3"/>`;
+    const nm = nd.name.length > 8 ? nd.name.slice(0, 7) + '…' : nd.name;
+    t += `<text x="${x(i)}" y="54" text-anchor="${i === 0 ? 'start' : last ? 'end' : 'middle'}" ${i === 0 ? `dx="-10"` : last ? `dx="10"` : ''} class="dg-n">${esc(nm)}</text>`;
+  });
+  const label = nodes.map((nd, i) => nd.name + (i < n - 1 ? ` (${nd.seg.label})` : '')).join(' → ');
+  return `<svg class="diagram" viewBox="0 0 ${W} 62" role="img" aria-label="${esc(label)}">${g}${t}</svg>`;
+}
+function routeHead(v, T, R) {
+  const best = mainExit(v), walkMin = mins(best.p.m);
+  let big, sub, nodes;
+  if (st.way === 'car') {
+    big = T.arrive ? `${hm(T.arrive)} 주차장 도착` : `${esc(v.gate || '동2문')} 주차장`;
+    sub = `${esc(v.parking || '공연장 주차장')} · 걸어서 ${esc(v.pwalk || '몇')}분`;
+    nodes = [{name:(v.gate || '동2문'), seg:{color:'#888', label:'주차', dash:false}}, {name:(v.parking || '주차장').split(',')[0], seg:{color:'#888', label:`${v.pwalk || ''}분`, dash:true}}, {name:v.name}];
+  } else if (R) {
+    const r = R[0], ride = Math.round(r.ride + r.xfer), board = T.arrive ? addMin(T.arrive, -ride) : null;
+    big = board ? `${hm(board)} ${esc(st.from)}역 출발` : `${esc(st.from)}역 출발`;
+    sub = `지하철 ${ride}분 + 걸어서 ${walkMin}분 · 환승 ${r.legs.length - 1}번`;
+    nodes = r.legs.map(l => ({name:l.st[0], seg:{color:LINE_COLOR[l.ref] || '#666', label:lineName(l.ref)}}));
+    nodes.push({name:r.x.s.name.replace('역', ''), exit:String(r.x.e.no), seg:{color:'#888', label:`${walkMin}분`, dash:true}});
+    nodes.push({name:v.name});
+  } else {
+    big = T.arrive ? `${hm(T.arrive)} 역 도착` : `${esc(best.s.name)} ${esc(best.s.line)}`;
+    sub = `${esc(best.s.name)} ${best.e.no}번 출구에서 걸어서 ${walkMin}분`;
+    nodes = [{name:best.s.name.replace('역', ''), seg:{color:best.s.color, label:best.s.line}}, {name:`${best.e.no}번 출구`, exit:String(best.e.no), seg:{color:'#888', label:`${walkMin}분`, dash:true}}, {name:v.name}];
+    nodes[0].seg = {color:'#bbb', label:'', dash:true};
+  }
+  return `<div class="rhead"><div class="big">${big}</div><div class="meta">${sub}</div>${diagram(nodes)}</div>`;
+}
+function fromBar(R) {
+  const opts = metroGraph().names.map(n => `<option value="${esc(n)}">`).join('');
+  const form = `<form class="fromform" id="fromForm"><label for="fromIn">집 근처 출발역</label><div><input id="fromIn" list="stList" autocomplete="off" placeholder="예: 노원" value="${esc(st.from || '')}"><button type="submit">확인</button>${st.from ? '<button type="button" id="fromClear">지우기</button>' : ''}</div><datalist id="stList">${opts}</datalist><p class="meta" id="fromErr" role="alert"></p></form>`;
+  const links = mapLinks(mainExit(venue()));
+  if (!st.from) return `<div class="fromcard">${form}${links}</div>`;
+  return `<details class="fromcard fold"><summary><span>${I.train} 출발역 <b>${esc(st.from)}</b>${R ? '' : ' · 경로 없음'}</span><span class="meta">바꾸기 · 길찾기 앱</span></summary>${form}${links}</details>`;
+}
 function renderRoute() {
   const v = venue(), m = mode(), s = curShow(), T = timesFor(), c = centerFor(v);
-  let h = speakBar('route') + '<ol class="steps">';
+  const R = st.way === 'subway' ? pickedRoute() : null; if (st.from && st.way === 'subway') loadElevAll();
+  let h = speakBar('route') + routeHead(v, T, R) + (st.way === 'subway' ? fromBar(R) : '');
+  const near = routeReports();
+  h += '<ol class="steps rows">';
+  if (near.length) h += row(I.warn, `현장 제보 ${near.length}건`, near.slice(0, 2).map(r => RK[r.kind]).join(' · '), chip('bad', '확인'), `<ul class="plain">${near.map(r => `<li><b>${esc(RK[r.kind])}</b> ${ago(r.at)}${r.text ? ` · ${esc(r.text)}` : ''}</li>`).join('')}</ul><button class="linkbtn" data-tab="map">지도에서 보기</button>`, 'warn');
   if (st.way === 'subway') {
-    const R = pickedRoute(); if (st.from) loadElevAll();
-    h = speakBar('route') + fromHTML(R, T) + '<ol class="steps">' + (R ? fromSteps(R) : '');
     const best = mainExit(v), S = best.s;
-    h += stepHTML('1', R ? '도착역 확인' : '출발 전 확인', elevNote(S) + `<dl class="facts"><dt>${I.phone} 역 전화</dt><dd><a href="tel:${S.tel.replace(/-/g,'')}">${S.tel}</a> (${esc(S.name)} ${esc(S.line)})</dd>${S.ramp != null ? `<dt>안전발판</dt><dd>${S.ramp ? '있음 · 승강장 틈이 걱정되면 역에 요청' : '보유 정보 없음'}</dd>` : ''}</dl>`);
-    h += stepHTML('2', `${pill(S)} ${esc(S.name)}에서 내리기`, `<p>엘리베이터와 가까운 칸: <b>${esc(S.board)}</b></p>`);
-    h += stepHTML('3', `<span class="exit">${best.e.no}</span>번 출구 엘리베이터로 지상까지`, `<p class="meta">${esc(S.ground)}</p>${S.warn ? `<div class="note warn">${I.warn}<span>${esc(S.warn)}</span></div>` : ''}`, true);
-    h += stepHTML('4', `${esc(v.name)}까지 약 ${mins(best.p.m)}분`, `<p>${best.p.real ? `계단을 피한 길로 약 <b>${Math.round(best.p.m)}m</b> (${m.label} 기준)` : `약 ${Math.round(best.p.m)}m 추정 (직선거리 기반, ${m.label} 기준)`}</p>${best.p.steps ? `<div class="note warn">${I.warn}<span>계단 없는 길을 찾지 못해 일부 구간에 계단이 있을 수 있어요.</span></div>` : ''}${best.p.real ? `<ol class="turns">${directions(best.p.pts, v, `${best.s.name} ${best.e.no}번 출구`).map(t => `<li>${t}</li>`).join('')}</ol><p class="meta">방향과 거리는 OpenStreetMap 보행로 기준 추정이에요. 현장 안내판을 함께 확인하세요.</p>` : ''}`);
+    if (R) {
+      const r = R[0], o = stationElev(st.from, r.legs[0].ref), exits = o ? [...new Set(o.map(x => x.exit).filter(e => /^\d+$/.test(e)))].sort((p, q) => p - q) : [];
+      h += row(I.elev, `${esc(st.from)}역 엘리베이터`, exits.length ? `${exits.join('·')}번 출구` : '출발 전에 확인', elevChip(o, live.elevAll === undefined), elevLine(st.from, r.legs[0].ref));
+      r.legs.forEach((l, i) => {
+        const a = l.st[0], b = l.st[l.st.length - 1], n = l.st.length - 1;
+        if (i > 0) h += row(I.xfer, `${esc(a)} 환승 → ${esc(lineName(l.ref))}`, '엘리베이터 동선 약 10분', elevChip(stationElev(a, l.ref), live.elevAll === undefined), elevLine(a, l.ref));
+        h += row(linePill(l.ref), `${esc(lineName(l.ref))} ${esc(legDir(l))}`, `${esc(a)} → ${esc(b)} · ${n}개 역 · ${Math.round(n * RIDE)}분`, '', null, 'lpwrap');
+      });
+    }
+    const ae = arrElev(S);
+    h += row(linePill(S.line.replace('호선', '')), `${esc(S.name)} ${R ? '하차' : `${esc(S.line)}에서 내리기`}`, `엘리베이터 가까운 칸 ${esc(S.board)}`, elevChip(ae === 'loading' ? null : ae, ae === 'loading'),
+      elevNote(S) + `<dl class="facts"><dt>${I.phone} 역 전화</dt><dd><a href="tel:${S.tel.replace(/-/g,'')}">${S.tel}</a></dd>${S.ramp != null ? `<dt>안전발판</dt><dd>${S.ramp ? '있음 · 승강장 틈이 걱정되면 역에 요청' : '보유 정보 없음'}</dd>` : ''}</dl>`, 'lpwrap');
+    h += row(`<span class="exit">${best.e.no}</span>`, `${best.e.no}번 출구 엘리베이터로 지상`, esc(S.ground).slice(0, 40), S.warn ? chip('warnc', '주의') : '', `<p>${esc(S.ground)}</p>${S.warn ? `<div class="note warn">${I.warn}<span>${esc(S.warn)}</span></div>` : ''}`, 'y');
+    const dirs = best.p.real ? directions(best.p.pts, v, `${best.s.name} ${best.e.no}번 출구`) : [];
+    h += row(I.walk, `계단 없는 길 ${mins(best.p.m)}분`, `${Math.round(best.p.m)}m · ${m.label} 기준`, '',
+      `${dirs.length ? `<ol class="turns">${dirs.map(t => `<li>${t}</li>`).join('')}</ol><p class="meta">OpenStreetMap 보행로 기준 추정이에요. 현장 안내판을 함께 확인하세요.</p>` : `<p>약 ${Math.round(best.p.m)}m 추정 (직선거리 기반)</p>`}${best.p.steps ? `<div class="note warn">${I.warn}<span>계단 없는 길을 찾지 못해 일부 구간에 계단이 있을 수 있어요.</span></div>` : ''}`, '', dirs.length ? `<button class="go xbtn" data-follow>${I.map}<span>따라가기</span></button>` : '');
   } else {
-    const ps = D.pstats.full_days_by_lot, lot = v.parking || '가까운 공연장 주차장', lots = (v.parking || '').match(/P\d+[AB]?/g) || [];
-    const lp = live.parking;
-    h += stepHTML('1', '출발 전 확인', `${lp ? `<div class="live"><b>${lp.p.toLocaleString()}대</b><span class="meta">/ 2,200대 주차 중 · ${esc(lp.at)}</span></div><div class="meter"><i style="width:${Math.min(100, lp.p/22)}%"></i></div>` : '<p class="meta">실시간 주차 대수를 불러오는 중…</p>'}<p class="meta">주말 만차 기록의 62%가 오후 1~3시에 몰려 있어요. 저녁 공연도 낮부터 차요.</p>`);
-    h += stepHTML('2', `${esc(v.gate || '동2문')}으로 들어가 ${esc(lot)} 주차`, `<p>${v.pcap ? `${v.pcap}대 규모` : ''}${lots.map(l => ps[l] ? ` · ${l}는 혼잡 기록 92일 중 ${ps[l]}일 만차` : '').join('')}</p><p class="meta">장애인·국가유공자 차량은 주차요금 50% 할인이에요(10분당 600원, 하루 최대 2만 원). 대형 공연 날엔 사전정산이 없고, 공연 티켓이 있어도 따로 할인되지 않아요. 입차는 오전 6시~밤 10시.</p>`, true);
-    h += stepHTML('3', `${esc(v.name)}까지 걸어서 ${esc(v.pwalk || '몇')}분`, `<p class="meta">만남의광장 휠체어 진입로: 동2문 입차 → 그래피티의 벽 주차장 → 올림픽공원역 쪽 경사로</p>`);
+    const ps = D.pstats.full_days_by_lot, lot = v.parking || '가까운 공연장 주차장', lots = (v.parking || '').match(/P\d+[AB]?/g) || [], lp = live.parking;
+    const pct = lp ? lp.p / 2200 : 0;
+    h += row(I.park, '지금 주차', lp ? `${lp.p.toLocaleString()}대 / 2,200대 · ${esc(lp.at)}` : '불러오는 중…', lp ? chip(pct > .9 ? 'bad' : pct > .7 ? 'warnc' : 'ok', pct > .9 ? '거의 참' : pct > .7 ? '혼잡' : '여유') : '',
+      `${lp ? `<div class="meter"><i style="width:${Math.min(100, pct * 100)}%"></i></div>` : ''}<p class="meta">주말 만차 기록의 62%가 오후 1~3시에 몰려 있어요. 저녁 공연도 낮부터 차요.</p>`);
+    h += row(I.car, `${esc(v.gate || '동2문')} → ${esc(lot)}`, `${v.pcap ? `${v.pcap}대` : ''}${lots.map(l => ps[l] ? ` · ${l} 만차 ${ps[l]}일` : '').join('')}`, '', `<p class="meta">장애인·국가유공자 차량은 주차요금 50% 할인이에요(10분당 600원, 하루 최대 2만 원). 대형 공연 날엔 사전정산이 없고, 공연 티켓이 있어도 따로 할인되지 않아요. 입차는 오전 6시~밤 10시.</p>`);
+    h += row(I.walk, `${esc(v.name)}까지 ${esc(v.pwalk || '몇')}분`, '휠체어 진입로 안내', '', `<p class="meta">만남의광장 휠체어 진입로: 동2문 입차 → 그래피티의 벽 주차장 → 올림픽공원역 쪽 경사로</p>`);
   }
-  // 도착 후
   let w = '';
   if (st.mode !== 'stroller' && T.end) {
     if (T.end.getHours()*60 + T.end.getMinutes() > 19*60) w = `<div class="note warn">${I.warn}<span>공연이 ${hm(T.end)}쯤 끝나는데 안내센터는 19:00에 닫아요. 대여 휠체어는 공연 전에 반납해야 하니 공연장 안에서 쓸 휠체어는 미리 챙기세요.</span></div>`;
     else if ((T.end - T.arrive)/60000 > 180) w = `<div class="note warn">${I.warn}<span>도착부터 종료까지 3시간이 넘어요. 무료 대여는 3시간까지예요.</span></div>`;
   }
   const tl = toiletsNear(v);
-  h += stepHTML(I.pin, '공연장 도착', `<dl class="facts">
+  h += row(I.flag, `${esc(v.name)} 도착`, st.mode === 'stroller' ? '수유실 · 가까운 화장실' : `휠체어 대여 ${esc(c.name.replace(/\s*안내센터.*/, ''))} · 화장실 ${Math.round(tl[0].m)}m`, w ? chip('warnc', '19시 반납') : '', `<dl class="facts">
       <dt>${st.mode === 'stroller' ? '수유실' : '휠체어 대여'}</dt><dd>${st.mode === 'stroller' ? '평화의광장 안내센터(전자레인지 있음, 09:00~19:00)' : `${esc(c.name)} · 공연장에서 약 ${mins(c.p.m)}분 · 09:00~19:00, 신분증 맡기고 3시간 무료 · <a href="tel:${c.tel.split('~')[0].replace(/-/g,'')}">${esc(c.tel)}</a>`}</dd>
-      <dt>가까운 화장실</dt><dd>${tl.map(t => `${esc(t.p)} ${esc(t.d)} (${Math.round(t.m)}m)`).join(' · ')}</dd></dl>${w}`);
+      <dt>가까운 화장실</dt><dd>${tl.map(t => `${esc(t.p)} ${esc(t.d)} (${Math.round(t.m)}m)`).join(' · ')}</dd></dl>${w}`, 'blue');
   h += '</ol>';
   if (st.way === 'subway') {
+    const R2 = R ? R.slice(1, 3) : [];
     const seen = new Set([mainExit(v).s.id]);
     const alts = exitsFor(v).filter(x => !seen.has(x.s.id) && seen.add(x.s.id)).slice(0, 3);
-    h += `<details class="alt"><summary>다른 역으로 가기 (${alts.length})</summary>${alts.map(x => `<div class="altrow"><p style="margin:0">${pill(x.s)} <b>${esc(x.s.name)}</b> <span class="exit">${x.e.no}</span>번 출구 → 약 ${mins(x.p.m)}분</p>${x.s.warn ? `<p class="meta">${esc(x.s.warn)}</p>` : ''}${elevNote(x.s)}</div>`).join('')}</details>`;
+    h += `<details class="alt"><summary>${R2.length ? `다른 경로 (${R2.length})` : `다른 역으로 가기 (${alts.length})`}</summary>${R2.length
+      ? R2.map(q => `<div class="altrow"><p style="margin:0"><b>${esc(q.x.s.name)}</b> ${esc(q.x.s.line)} 도착 · 지하철 약 ${Math.round(q.ride + q.xfer)}분 · 환승 ${q.legs.length - 1}번 · 걸어서 ${mins(q.x.p.m)}분</p><p class="meta">${q.legs.map(l => `${lineName(l.ref)} ${l.st[0]}→${l.st[l.st.length - 1]}`).map(esc).join(' · ')}</p></div>`).join('')
+      : alts.map(x => `<div class="altrow"><p style="margin:0">${pill(x.s)} <b>${esc(x.s.name)}</b> <span class="exit">${x.e.no}</span>번 출구 → 약 ${mins(x.p.m)}분</p>${x.s.warn ? `<p class="meta">${esc(x.s.warn)}</p>` : ''}${elevNote(x.s)}</div>`).join('')}</details>`;
   }
-  const near = routeReports();
-  if (near.length) h = h.replace('<ol class="steps">', `<div class="note warn">${I.info}<span>최근 이 길 근처에 현장 제보가 ${near.length}건 있어요: ${near.slice(0, 3).map(r => `<b>${esc(RK[r.kind])}</b>(${ago(r.at)})`).join(', ')}. <button class="linkbtn" data-tab="map">지도에서 보기</button></span></div><ol class="steps">`);
   $('#pane-route').innerHTML = h;
   markSpeaking();
 }
@@ -420,13 +514,13 @@ function ltTable(T, x) {
   const rows = lastTrains(x.s, T.start); if (!rows.length) return null;
   const groups = {}; rows.forEach(r => (groups[r.dir] ??= []).push(r));
   const base = t => t.replace('(급행)', ''), lab = t => base(t) + '행' + (t.includes('급행') ? ' 급행' : '');
-  const miss = [];
+  const miss = [], tops = [];
   const body = Object.values(groups).sort((p, q) => q.length - p.length).map(g => {
     const term = TERM.find(t => g.some(r => base(r.to) === t)) || base(g[0].to), fulls = g.filter(r => base(r.to) === term), last = fulls.reduce((a, b) => b.at > a.at ? b : a);
-    const by = addMin(last.at, -walk); if (T.leave > by) miss.push({r:last, by});
+    const by = addMin(last.at, -walk); if (T.leave > by) miss.push({r:last, by}); tops.push({to:last.to, at:last.at, by, miss:T.leave > by});
     return [...g].sort((a, b) => a.at - b.at).map(r => `<tr class="${base(r.to) === term ? '' : 'sub'}"><th scope="row">${esc(lab(r.to))}${base(r.to) === term ? ' <small>(종점)</small>' : ''}</th><td>${r === last ? `<b>${hm(r.at)}</b>` : hm(r.at)}</td><td>${hm(addMin(r.at, -walk))}</td></tr>`).join('');
   }).join('<tr class="gap"><td colspan="3"></td></tr>');
-  return {miss, html:`<table><caption>${esc(x.s.name)} ${esc(x.s.line)} · ${x.e.no}번 출구까지 약 ${mins(x.p.m)}분</caption><thead><tr><th scope="col">열차(가는 곳)</th><th scope="col">막차</th><th scope="col">공연장에서 나설 시각</th></tr></thead><tbody>${body}</tbody></table>`};
+  return {miss, fulls:tops, x, html:`<table><caption>${esc(x.s.name)} ${esc(x.s.line)} · ${x.e.no}번 출구까지 약 ${mins(x.p.m)}분</caption><thead><tr><th scope="col">열차(가는 곳)</th><th scope="col">막차</th><th scope="col">공연장에서 나설 시각</th></tr></thead><tbody>${body}</tbody></table>`};
 }
 function lastTrainHTML(T, v) {
   const all = [mainExit(v), ...exitsFor(v)], seen = new Set(), per = all.filter(x => !seen.has(x.s.id) && seen.add(x.s.id));
@@ -440,26 +534,42 @@ function lastTrainHTML(T, v) {
   <p class="meta">표의 '가는 곳'까지 가거나 그 전에 내리면 그 열차를 탈 수 있어요. 나설 시각은 걷는 시간에 엘리베이터·개찰구 여유 10분을 더해 계산했어요. 서울교통공사 시간표(${D.lastTrain.asof} 기준)이며, 음력 명절·대체공휴일은 역에 확인하세요.</p></div>`;
 }
 
+function miniChart(T) {
+  const A = D.exit25, mx = Math.max(...A.event), n = A.event.length, W = 330, H = 96, bw = W / n;
+  const li = A.min.indexOf(70);
+  let g = A.event.map((v, i) => { const h = v / mx * (H - 26), hot = A.min[i] >= 0 && v >= mx / 2; return `<rect x="${i * bw + 2}" y="${H - 18 - h}" width="${bw - 4}" height="${h}" rx="2" fill="${hot ? '#d9480f' : A.min[i] < 0 ? '#b7c3d0' : '#0b4fa3'}"/>`; }).join('');
+  if (li >= 0) g += `<line x1="${li * bw + bw / 2}" x2="${li * bw + bw / 2}" y1="2" y2="${H - 18}" stroke="var(--ink)" stroke-width="2" stroke-dasharray="3 3"/><text x="${li * bw + bw / 2 + 4}" y="12" class="dg-l">나서기</text>`;
+  [[0, '종료'], [30, '+30분'], [60, '+60분'], [90, '+90분']].forEach(([o, l]) => { const k = A.min.indexOf(o); if (k >= 0) g += `<text x="${k * bw + bw / 2}" y="${H - 4}" text-anchor="middle" class="dg-l">${T.end ? hm(addMin(T.end, o)) : l}</text>`; });
+  return `<svg class="mini" viewBox="0 0 ${W} ${H}" role="img" aria-label="공연 종료 뒤 10분 단위 출차. 종료 20분 뒤 가장 많고, 70분 뒤 절반, 90분 뒤 3분의 1로 줄어요.">${g}</svg>`;
+}
 function renderAfter() {
   const T = timesFor(), A = D.exit25, mx = Math.max(...A.event), v = venue();
   let h = speakBar('after');
-  if (T.end) h += `<p class="meta" style="margin:0">혼잡을 피해 나서기 좋은 시각</p><div class="big">${hm(T.leave)} 이후</div>`;
-  else h += `<h3 style="margin:0 0 4px">공연이 끝나면 1시간 넘게 붐벼요</h3>`;
-  h += `<p>큰 공연이 끝나면 20~40분 뒤에 가장 붐벼요. 평소 같은 시각의 약 10배예요. 70분 뒤에는 절반, 90분 뒤에는 3분의 1로 줄어요. 엘리베이터와 출구 앞 줄도 이때 가장 길어요.</p>`;
-  h += `<div class="note info">${I.info}<span>오래 기다리기 어렵다면 <b>공연이 끝나기 직전에 먼저 나서는 것</b>도 방법이에요. 끝나기 10분 전은 가장 붐빌 때의 3분의 1 정도예요.</span></div>`;
-  if (T.end && st.way === 'subway') h += lastTrainHTML(T, v);
-  h += `<div class="bars" role="img" aria-label="공연 종료 전후 10분 단위 출차 대수. 종료 20분 뒤 ${mx}대로 가장 많고, 70분 뒤 절반, 90분 뒤 3분의 1로 줄어요.">${A.min.map((o, i) => {
+  h += `<div class="rhead"><div class="big">${T.end ? `${hm(T.leave)} 이후 나서기` : '끝나고 70분 뒤 나서기'}</div><div class="meta">${T.end ? `공연 끝 ${hm(T.end)} · 가장 붐빌 때 ${hm(addMin(T.end, 20))}~${hm(addMin(T.end, 40))}` : '끝나고 20~40분 뒤가 가장 붐벼요'}</div>${miniChart(T)}</div>`;
+  h += '<ol class="steps rows">';
+  if (T.end && st.way === 'subway') {
+    const x = mainExit(v), t = ltTable(T, x);
+    if (t) {
+      const f = [...t.fulls].sort((p, q) => p.at - q.at)[0], miss = t.fulls.filter(z => z.miss);
+      h += row(I.train, `막차 ${esc(f.to.replace('(급행)', ''))}행 ${hm(f.at)}`, `${hm(f.by)}까지 공연장에서 나서기${t.fulls.length > 1 ? ` · 외 ${t.fulls.length - 1}방향` : ''}`, miss.length ? chip('bad', '놓칠 수 있음') : chip('ok', '여유'), lastTrainHTML(T, v));
+    }
+  }
+  h += row(I.info, '오래 못 기다린다면', '끝나기 10분 전에 먼저 나서기', '', `<p>끝나기 10분 전은 가장 붐빌 때의 3분의 1 정도예요. 엘리베이터와 출구 앞 줄도 이때 가장 짧아요.</p>`);
+  h += row(I.flag, '기다리는 동안', '화장실 먼저 · 실내에서 쉬기', '', `<p>공연장 근처 화장실을 먼저 들르고, 출구 쪽 혼잡이 줄 때까지 실내에서 쉬세요.</p>`);
+  if (st.way === 'subway') {
+    const x = mainExit(v), R = pickedRoute(), L = R ? [...R[0].legs].reverse() : null;
+    h += row(`<span class="exit">${x.e.no}</span>`, `${x.e.no}번 출구 엘리베이터로`, L ? `집으로: ${L.map(l => lineName(l.ref)).join(' → ')} → ${st.from}역` : `${x.s.name} ${x.s.line}`, '', L ? `<p>${L.map((l, i) => `${i ? `${esc(l.st[l.st.length - 1])}에서 ` : ''}${esc(lineName(l.ref))}`).join(' → ')} → ${esc(st.from)}역</p>` : '', 'y');
+  } else h += row(I.car, '주차장 나가기', `출차 ${A.gates['동2문']}% 동2문 · ${A.gates['북2문']}% 북2문`, '', `<p>공연이 끝나면 출차의 약 ${A.gates['동2문']}%가 동2문, ${A.gates['북2문']}%가 북2문, ${A.gates['남2문']}%가 남2문으로 몰려요.${v && v.gate ? ` 이 공연장 주차장은 <b>${esc(v.gate)}</b> 쪽이에요.` : ''} 종료 70분 뒤부터 나서면 기다림이 짧아요.</p>`);
+  h += row(I.phone, '장애인콜택시 1588-4388', '끝나면 바로 접수 · 동승 3명', '', `<p><a class="tel" href="tel:15884388">1588-4388</a> (전화·문자, 앱 '장애인콜택시')</p><p class="meta">필요한 때 바로 접수하는 방식이 원칙이라, 공연이 끝나면 바로 접수하세요. 끝난 직후엔 대기가 길 수 있어요. 휠체어 이용 시 보호자 등 3명까지 함께 탈 수 있어요. 시각장애인은 복지콜 <a class="tel" href="tel:16004477">1600-4477</a>. 타는 곳은 공연장 이름과 가까운 출입문(${esc((v && v.gate) || '동2문')})을 함께 말하세요.</p>`);
+  h += '</ol>';
+  h += `<details class="alt"><summary>10분 단위 혼잡 자세히 보기</summary><div class="bars" role="img" aria-label="공연 종료 전후 10분 단위 출차 대수">${A.min.map((o, i) => {
     const lab = T.end ? hm(addMin(T.end, o)) : (o === 0 ? '종료' : (o > 0 ? '+' : '') + o + '분');
     const hot = o >= 0 && A.event[i] >= mx / 2;
     return `<span class="t ${o === 0 ? 'end' : ''}">${lab}</span><div class="track"><div class="b ${hot ? 'hot' : ''}" style="width:${A.event[i]/mx*100}%"></div><div class="w" style="left:${A.base[i]/mx*100}%"></div></div><span class="n">${A.event[i]}</span>`;
   }).join('')}</div>
   <div class="legend"><span><i style="background:#d9480f"></i>가장 붐빌 때의 절반 이상</span><span><i style="background:var(--blue)"></i>공연일 10분 출차(대)</span><span><i style="background:var(--ink);opacity:.55;width:3px"></i>공연 없는 날 같은 시각</span></div>
-  <p class="meta">2025년 올림픽공원 주차장 입출차 약 240만 건 중 관객 8천 명 이상 공연일 77일을 분석했어요. 출차가 몰리기 시작한 시점을 공연 종료로 맞추고, 날마다 값의 가운데 값(중앙값)을 보여 줘요.</p>
-  <ol class="steps" style="margin-top:12px">
-   ${stepHTML('1', '기다리는 동안', '<p>공연장 근처 화장실을 먼저 들르고, 출구 쪽 혼잡이 줄 때까지 실내에서 쉬세요.</p>')}
-   ${stepHTML('2', '돌아가는 길', st.way === 'subway' ? `<p>올 때와 같은 <span class="exit">${mainExit(v).e.no}</span>번 출구 엘리베이터를 이용하세요.</p>${(() => { const R = pickedRoute(); if (!R) return ''; const L = [...R[0].legs].reverse(); return `<p class="meta">집으로: ${L.map((l, i) => `${i ? `${esc(l.st[l.st.length - 1])}에서 ` : ''}${esc(lineName(l.ref))}`).join(' → ')} → ${esc(st.from)}역. 막차는 위 표에서 확인하세요.</p>`; })()}` : `<p>공연이 끝나면 출차의 약 ${A.gates['동2문']}%가 동2문, ${A.gates['북2문']}%가 북2문, ${A.gates['남2문']}%가 남2문으로 몰려요.${v && v.gate ? ` 이 공연장 주차장은 <b>${esc(v.gate)}</b> 쪽이에요.` : ''} 종료 70분 뒤부터 나서면 기다림이 짧아요.</p>`)}
-   ${stepHTML('3', '택시가 필요하면', `<p><b>서울 장애인콜택시</b> <a class="tel" href="tel:15884388">1588-4388</a> (전화·문자, 앱 '장애인콜택시')</p><p class="meta">필요한 때 바로 접수하는 방식이 원칙이라, 공연이 끝나면 바로 접수하세요. 끝난 직후엔 대기가 길 수 있어요. 휠체어 이용 시 보호자 등 3명까지 함께 탈 수 있어요. 시각장애인은 복지콜 <a class="tel" href="tel:16004477">1600-4477</a>.</p><p class="meta">타는 곳은 콜센터에 공연장 이름과 가까운 출입문(${esc((v && v.gate) || '동2문')})을 함께 말하면 찾기 쉬워요.</p>`)}
-  </ol>`;
+  ${(() => { const s = curShow(); return s && s.durSrc !== 'official' ? `<p class="meta">끝나는 시각은 ${s.durSrc === 'past' ? '같은 출연자의 지난 공연 소요시간' : '이 공연장 공연들의 보통 소요시간'}(${s.dur}분)으로 추정했어요(공연정보 API).</p>` : ''; })()}
+  <p class="meta">2025년 올림픽공원 주차장 입출차 약 240만 건 중 관객 8천 명 이상 공연일 77일을 분석했어요. 출차가 몰리기 시작한 시점을 공연 종료로 맞추고, 날마다 값의 가운데 값(중앙값)을 보여 줘요.</p></details>`;
   $('#pane-after').innerHTML = h;
   markSpeaking();
 }
@@ -472,6 +582,39 @@ const P = ll => [+((ll[1]-B.w)*kx).toFixed(1), +((B.n-ll[0])*ky).toFixed(1)];
 const pts = a => a.map(P).map(p => p.join(',')).join(' ');
 let vb = {x:0, y:0, w:W, h:H};
 const setVB = () => { const svg = $('#map'); svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`); const px = $('#mapwrap').clientWidth || 600, s = Math.max(0.35, Math.min(3, vb.w / px * 0.85)); svg.querySelectorAll('.sc').forEach(g => { const [x,y] = g.dataset.p.split(','); g.setAttribute('transform', `translate(${x} ${y}) scale(${s.toFixed(3)})`); }); };
+// ---------- 지도 따라가기 ----------
+let follow = null;
+function startFollow() {
+  const v = venue(), x = mainExit(v); if (!x.p.real) return;
+  const turns = directions(x.p.pts, v, `${x.s.name} ${x.e.no}번 출구`).turns;
+  follow = {i:0, turns, pos:null, watch:null, out:false};
+  if (navigator.geolocation) follow.watch = navigator.geolocation.watchPosition(onPos, () => { if (follow && !follow.pos) { follow.noGps = true; renderFollow(); } }, {enableHighAccuracy:true, maximumAge:5000, timeout:20000});
+  setTab('map'); drawMap();
+  setTimeout(() => { const b = $('#followCard .ft'); if (b) b.focus(); }, 50);
+}
+window.__dbg = {get follow() { return follow; }};
+function stopFollow() { if (follow && follow.watch != null) navigator.geolocation.clearWatch(follow.watch); follow = null; drawMap(); }
+function onPos(p) {
+  if (!follow) return;
+  const ll = [p.coords.latitude, p.coords.longitude];
+  follow.out = ll[0] < B.s || ll[0] > B.n || ll[1] < B.w || ll[1] > B.e;
+  follow.pos = follow.out ? null : ll;
+  const t = follow.turns[follow.i];
+  if (follow.pos && t && follow.i < follow.turns.length - 1 && dist(follow.pos, t.end) < 15) { follow.i++; if (sp.on || follow.voice) sayFollow(); drawMap(); return; }
+  const me = $('#me'); if (me && follow.pos) { const q = P(follow.pos); me.dataset.p = q.join(','); setVB(); } else drawMap();
+  renderFollow();
+}
+function renderFollow() {
+  const box = $('#followCard'); if (!box) return;
+  if (!follow) { box.hidden = true; return; }
+  const t = follow.turns[follow.i], n = follow.turns.length;
+  box.hidden = false;
+  box.innerHTML = `<div class="fi" aria-hidden="true">${I[t.kind] || I.up}</div><div class="ft" tabindex="-1" aria-live="polite"><b>${esc(t.short)}</b><small>${esc(t.poi || (follow.i === n - 1 ? venue().name : ''))}</small></div><span class="fc">${follow.i + 1}/${n}</span>
+    <div class="fb"><button data-fprev aria-label="이전 안내" ${follow.i ? '' : 'disabled'}>이전</button>${SPEECH ? `<button data-fsay>${I.spk}<span>듣기</span></button>` : ''}<button data-fnext aria-label="다음 안내" ${follow.i < n - 1 ? '' : 'disabled'}>다음</button><button data-fexit>끝내기</button></div>
+    ${follow.out ? '<p class="fnote">지금 위치가 공원 밖이에요. 안내를 직접 넘기며 보세요.</p>' : follow.noGps ? '<p class="fnote">위치를 쓸 수 없어 직접 넘기며 안내해요.</p>' : !follow.pos ? '<p class="fnote">내 위치를 찾는 중…</p>' : ''}`;
+}
+function sayFollow() { if (!SPEECH || !follow) return; const t = follow.turns[follow.i]; sayList('map', [{step:-1, text:speakable({cloneNode:() => { const d = document.createElement('div'); d.textContent = t.text; return d; }})}], 0); }
+
 function drawMap() {
   const v = venue() || {id:'', name:'', lat:0, lng:0}, svg = $('#map'), has = !!venue();
   let route = null;
@@ -483,7 +626,10 @@ function drawMap() {
   g += `<polygon points="${pts(D.park)}" fill="var(--park)" stroke="light-dark(#9cc08a,#35593f)" stroke-width="2"/>`;
   if (st.layers.path && D.paths) g += `<g stroke="var(--path)" stroke-width="2.2" fill="none" stroke-linecap="round">${D.paths.map(p => `<polyline points="${pts(p)}"/>`).join('')}</g>`;
   g += `<polygon points="${pts(D.water['몽촌호'])}" fill="var(--water)"/><polygon points="${pts(D.water['88호수'])}" fill="var(--water)"/><polyline points="${pts(D.water['성내천'])}" fill="none" stroke="var(--water)" stroke-width="7"/>`;
-  if (route) g += `<polyline class="route" points="${pts(route)}" stroke-opacity=".25" stroke-width="12"/><polyline class="route anim" points="${pts(route)}"/>`;
+  if (route && follow) {
+    g += `<polyline class="route" points="${pts(route)}" stroke-opacity=".25" stroke-width="12"/>`;
+    follow.turns.slice(follow.i).forEach((t, k) => { if (t.pts.length > 1) g += `<polyline class="route" points="${pts(t.pts)}" ${k ? '' : 'stroke-width="9"'} ${k ? 'stroke-opacity=".7"' : ''}/>`; });
+  } else if (route) g += `<polyline class="route" points="${pts(route)}" stroke-opacity=".25" stroke-width="12"/><polyline class="route anim" points="${pts(route)}"/>`;
   if (st.layers.toilet) g += D.fac.filter(f => f.k === '화장실').map(f => mark(f.ll, `<rect x="-11" y="-11" width="22" height="22" rx="5" fill="#2b8a3e"/><text y="4" font-size="11" fill="#fff" text-anchor="middle" font-weight="700">WC</text>`, `화장실 · ${f.p} ${f.d}`)).join('');
   if (st.layers.store) g += D.fac.filter(f => /편의점|식음료/.test(f.k)).map(f => mark(f.ll, `<circle r="8" fill="#7048e8" stroke="#fff" stroke-width="2"/>`, `${f.k} · ${f.p}`)).join('');
   if (st.layers.report && live.reports) g += live.reports.map(r => mark(r.ll, (doubted(r) ? '<g opacity=".4">' : '<g>') + (r.kind === 'good' ? `<circle r="11" fill="#2b8a3e" stroke="#fff" stroke-width="2.5"/><path d="M-5 0l3.5 3.5L5-4" stroke="#fff" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>` : `<path d="M0-14 13 10H-13z" fill="#d9480f" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/><text y="7" font-size="14" font-weight="700" fill="#fff" text-anchor="middle">!</text>`) + '</g>', `현장 제보 · ${RK[r.kind]}${r.text ? ' · ' + r.text : ''} (${ago(r.at)}, 저도 봤어요 ${r.ok || 0} · 지금은 아니에요 ${r.flag || 0})`)).join('');
@@ -492,18 +638,21 @@ function drawMap() {
   const best = has && st.way === 'subway' ? mainExit(v).id : '';
   D.stations.forEach(s => s.ev.forEach(e => { const id = s.id + '-' + e.no, on = id === best; g += mark(e.ll, `<rect x="-16" y="-16" width="32" height="32" rx="7" fill="${on ? 'var(--yel)' : '#fff'}" stroke="${s.color}" stroke-width="3.5"/><text y="6" font-size="18" font-weight="700" text-anchor="middle" fill="#111">${e.no}</text>`, `${s.name} ${s.line} ${e.no}번 출구 엘리베이터`, OFF[id]); }));
   [['몽촌토성역', D.stations[2].ev[0].ll, 0, -30], ['한성백제역', D.stations[3].ev[0].ll, 0, 44], ['올림픽공원역', D.stations[0].ev[0].ll, -10, 48]].forEach(([n, ll, dx, dy]) => { g += mark(ll, `<text x="${dx}" y="${dy}" font-size="19" font-weight="700" text-anchor="middle" fill="var(--ink)" paint-order="stroke" stroke="var(--bg)" stroke-width="5">${n}</text>`, n); });
+  if (follow && follow.pos) g += `<g class="sc" id="me" data-p="${P(follow.pos).join(',')}"><title>내 위치</title><circle r="16" fill="#378ADD" opacity=".25"/><circle r="8" fill="#185FA5" stroke="#fff" stroke-width="3"/></g>`;
   svg.innerHTML = g;
-  fit(has ? (route || [vll(v), [centerFor(v).lat, centerFor(v).lng]]) : D.park);
+  if (follow) { const t = follow.turns[follow.i], nx = follow.turns[follow.i + 1]; fit([...t.pts, ...(nx ? [nx.ll] : []), ...(follow.pos ? [follow.pos] : [])], true); }
+  else fit(has ? (route || [vll(v), [centerFor(v).lat, centerFor(v).lng]]) : D.park);
+  renderFollow();
   const dirs = has && st.way === 'subway' && mainExit(v).p.real ? directions(mainExit(v).p.pts, v, `${mainExit(v).s.name} ${mainExit(v).e.no}번 출구`) : [];
   $('#mapsay').hidden = !SPEECH || !dirs.length;
-  $('#mapdesc').innerHTML = dirs.length ? `<h3 style="margin:0 0 6px;font-size:16px">지도 내용 글로 보기</h3><ol class="turns">${dirs.map(t => `<li>${t}</li>`).join('')}</ol>` : '';
+  $('#mapdesc').innerHTML = dirs.length ? `<details class="alt"><summary>지도 내용 글로 보기</summary><ol class="turns">${dirs.map(t => `<li>${t}</li>`).join('')}</ol></details>` : '';
   $('#mapnote').textContent = !has ? '공연을 고르면 엘리베이터 출구에서 공연장까지 계단 없는 길을 그려 드려요. 노란 숫자: 엘리베이터 출구, 노란 i: 휠체어 대여.' : st.way === 'subway' ? (mainExit(v).p.real ? '파란 선: 계단을 피한 보행로 (OpenStreetMap 보행로 기준).' : '파란 선: 출구에서 공연장까지 방향 (실제 길은 현장 안내를 따르세요).') : '노란 i: 휠체어 무료 대여 안내센터';
 }
-function fit(list) {
+function fit(list, tight) {
   const p = list.map(P), xs = p.map(a => a[0]), ys = p.map(a => a[1]);
   let x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
   const wrap = $('#mapwrap'), ar = wrap.clientWidth / Math.max(1, wrap.clientHeight) || 4/3;
-  let w = Math.max(x1 - x0, 260) * 1.6, h = Math.max(y1 - y0, 200) * 1.6;
+  let w = Math.max(x1 - x0, tight ? 110 : 260) * (tight ? 1.5 : 1.6), h = Math.max(y1 - y0, tight ? 90 : 200) * (tight ? 1.5 : 1.6);
   if (w / h > ar) h = w / ar; else w = h * ar;
   vb = {x:(x0+x1)/2 - w/2, y:(y0+y1)/2 - h/2, w, h}; setVB();
 }
@@ -511,7 +660,7 @@ function zoom(f, cx, cy) { const nw = Math.min(W*1.6, Math.max(120, vb.w * f)), 
 { // 드래그·휠·핀치
   const wrap = $('#mapwrap'), ptr = new Map(); let last = null, pinch = null;
   const toSvg = (cx, cy) => { const r = wrap.getBoundingClientRect(); return [vb.x + (cx - r.left) / r.width * vb.w, vb.y + (cy - r.top) / r.height * vb.h]; };
-  wrap.addEventListener('pointerdown', e => { if (e.target.closest('.zoom, #pickbar')) return; wrap.setPointerCapture(e.pointerId); ptr.set(e.pointerId, [e.clientX, e.clientY]); wrap.classList.add('drag'); last = [e.clientX, e.clientY]; if (ptr.size === 2) { const [a, b] = [...ptr.values()]; pinch = Math.hypot(a[0]-b[0], a[1]-b[1]); } });
+  wrap.addEventListener('pointerdown', e => { if (e.target.closest('.zoom, #pickbar, #followCard')) return; wrap.setPointerCapture(e.pointerId); ptr.set(e.pointerId, [e.clientX, e.clientY]); wrap.classList.add('drag'); last = [e.clientX, e.clientY]; if (ptr.size === 2) { const [a, b] = [...ptr.values()]; pinch = Math.hypot(a[0]-b[0], a[1]-b[1]); } });
   wrap.addEventListener('pointermove', e => { if (!ptr.has(e.pointerId)) return; ptr.set(e.pointerId, [e.clientX, e.clientY]); const r = wrap.getBoundingClientRect();
     if (ptr.size === 2 && pinch) { const [a, b] = [...ptr.values()], d = Math.hypot(a[0]-b[0], a[1]-b[1]); const c = toSvg((a[0]+b[0])/2, (a[1]+b[1])/2); zoom(pinch / d, c[0], c[1]); pinch = d; return; }
     vb.x -= (e.clientX - last[0]) / r.width * vb.w; vb.y -= (e.clientY - last[1]) / r.height * vb.h; last = [e.clientX, e.clientY]; setVB(); });
@@ -683,6 +832,11 @@ document.addEventListener('click', e => {
   else if (b.id === 'mapsay') { if (sp.on && sp.pane === 'map') { stopSpeak(); return; } const items = [...$('#mapdesc').querySelectorAll('li')].map(li => ({step:-1, text:speakable(li)})); const c = centerFor(venue()), tl = toiletsNear(venue()); items.unshift({step:-1, text:`지도 안내예요. 파란 선은 계단을 피한 길이에요.`}); items.push({step:-1, text:`공연장에서 가장 가까운 화장실은 ${tl[0].p}, 약 ${r10(tl[0].m)}미터 거리예요. 휠체어 대여는 ${c.name}에서 해요.`}); sayList('map', items, 0); }
   else if (b.id === 'fromClear') { st.from = ''; save(); renderRoute(); drawMap(); renderAfter(); }
   else if (b.id === 'shareBtn') shareTrip();
+  else if (b.dataset.follow !== undefined) { startFollow(); }
+  else if (b.dataset.fnext !== undefined && follow) { follow.i = Math.min(follow.turns.length - 1, follow.i + 1); drawMap(); if (sp.on) sayFollow(); }
+  else if (b.dataset.fprev !== undefined && follow) { follow.i = Math.max(0, follow.i - 1); drawMap(); if (sp.on) sayFollow(); }
+  else if (b.dataset.fsay !== undefined && follow) { follow.voice = true; sayFollow(); }
+  else if (b.dataset.fexit !== undefined) { stopFollow(); }
   else if (b.id === 'reportBtn') setPick(true);
   else if (b.id === 'pickCancel') setPick(false);
   else if (b.id === 'pickOk') openReport(llFromSvg(vb.x + vb.w / 2, vb.y + vb.h / 2));

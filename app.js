@@ -84,30 +84,53 @@ const toiletsNear = v => D.fac.filter(f => f.k === '화장실').map(f => ({...f,
 
 // ---------- 음성 안내 (브라우저 내장 Web Speech API, 서버·비용 없음) ----------
 const SPEECH = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
-const sp = {on:false, pane:null, idx:-1, queue:[], rate:1};
+const sp = {on:false, pane:null, idx:-1, queue:[], rate:1, voice:''};
 try { sp.rate = +(localStorage.getItem('pyeonhanRate') || 1); } catch(e) {}
-const koVoice = () => (speechSynthesis.getVoices() || []).filter(v => /^ko/i.test(v.lang)).sort((a,b) => (b.localService - a.localService))[0];
+// 목소리: 기기에 있는 한국어 목소리 중 자연스러운 것(신경망·향상된 음질)을 먼저 고르고, 사용자가 바꿀 수 있게
+try { sp.voice = localStorage.getItem('pyeonhanVoice') || ''; } catch(e) {}
+const NOVELTY = /Eddy|Flo|Grandma|Grandpa|Reed|Rocko|Sandy|Shelley|Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Wobble|Good News|Jester|Organ|Superstar|Trinoids|Whisper|Zarvox|Fred|Junior|Ralph|Kathy/i;
+const voiceScore = v => (/Natural|Neural|Online|Enhanced|Premium|향상|고품질|프리미엄/i.test(v.name + v.voiceURI) ? 8 : 0) + (/Google/i.test(v.name) ? 6 : 0) + (/SunHi/i.test(v.name) ? 1 : 0) + (/Yuna|유나|SunHi|InJoon|Hyunsu|Minjung|Heami|Samsung/i.test(v.name) ? 2 : 0) - (NOVELTY.test(v.name) ? 20 : 0) + (v.localService ? 0 : 1);
+const koVoices = () => SPEECH ? (speechSynthesis.getVoices() || []).filter(v => /^ko/i.test(v.lang) && !NOVELTY.test(v.name)).sort((a, b) => voiceScore(b) - voiceScore(a) || a.name.localeCompare(b.name)) : [];
+const koVoice = () => { const L = koVoices(); return L.find(v => v.voiceURI === sp.voice) || L[0]; };
+const voiceLabel = v => v.name.replace(/^Microsoft\s+/i, '').replace(/\s*[-–]\s*Korean.*$/i, '').replace(/\s*\((한국어|Korean).*$/i, '').replace(/Online \(Natural\)/i, '자연스러운 음성').replace(/Enhanced|Premium/i, '향상된 음질').trim() || v.name;
+function voicePicker() {
+  const L = koVoices(); if (L.length < 2) return '';
+  const cur = koVoice();
+  return `<label class="voice"><span>목소리</span><select data-voice>${L.map((v, i) => `<option value="${esc(v.voiceURI)}" ${v === cur ? 'selected' : ''}>${esc(voiceLabel(v))}${i === 0 ? ' (추천)' : ''}</option>`).join('')}</select></label>`;
+}
+// 24시간제를 말하기 좋게: 23:27 → 밤 11시 27분
+const sayHM = (h, m) => { h = +h; m = +m; const p = h < 5 ? (h ? '새벽' : '밤') : h < 12 ? '오전' : h === 12 ? '낮' : h < 18 ? '오후' : h < 20 ? '저녁' : '밤'; return `${p} ${h % 12 || 12}시${m ? ' ' + m + '분' : ''}`; };
 function speakable(el) {
-  const c = el.cloneNode(true);
-  c.querySelectorAll('.say, .dot, svg, .speak').forEach(x => x.remove());
+  const c = el.cloneNode(true), end = (x, t) => x.append(t);
+  // 소리로 들을 필요 없는 것: 버튼·아이콘·펼침 표시·다른 역 막차 등 접힌 상세
+  c.querySelectorAll('button, .say, .dot, svg, .speak, .ic, .chev, .maplinks, .diagram, details details, .lt h3, .lt > .meta').forEach(x => x.remove());
+  // 표는 '○○행 막차 ○시 ○분'으로 줄여 읽기 (종점 행만)
+  c.querySelectorAll('table').forEach(t => { const r = [...t.querySelectorAll('tbody tr')].filter(x => !x.classList.contains('sub') && x.querySelector('th')); const s2 = document.createElement('p'); s2.textContent = r.map(x => x.querySelector('th').textContent.replace(/\s*\(종점\)/, '') + ' 막차, ' + x.querySelector('td').textContent).join('. '); t.replaceWith(s2); });
+  c.querySelectorAll('.tx small').forEach(x => { const k = x.textContent.trim(); if (k && c.textContent.split(k).length > 2) x.remove(); });
   c.querySelectorAll('.exit').forEach(x => x.textContent = x.textContent + '번');
-  c.querySelectorAll('h3').forEach(x => x.textContent = x.textContent.trim() + '. ');
-  c.querySelectorAll('dt').forEach(x => x.textContent = x.textContent.trim() + ': ');
-  c.querySelectorAll('dd, p, .note').forEach(x => x.append('. '));
-  let t = c.innerText.replace(/번번/g, '번');
-  return t
+  c.querySelectorAll('.tx b, .tx small, .chip, h3, dd, p, li, .note, summary').forEach(x => end(x, '. '));
+  c.querySelectorAll('dt').forEach(x => end(x, ': '));
+  let t = (c.innerText || c.textContent).replace(/번번/g, '번');
+  t = t
+    .replace(/(\d{4})-(\d{1,2})-(\d{1,2})/g, (m, y, mo, d) => `${+mo}월 ${+d}일`)
     .replace(/\b0(\d{1,2})-(\d{3,4})-(\d{4})(~\d)?/g, (m, a, b, c2) => ['0' + a, b, c2].map(g => g.split('').join(' ')).join(', '))
     .replace(/\b(1[56]\d{2})-(\d{4})\b/g, (m, a, b) => [a, b].map(g => g.split('').join(' ')).join(', '))
-    .replace(/(\d{1,2}):(\d{2})\s*~\s*(\d{1,2}):(\d{2})/g, (m, a, b, c2, d) => `${+a}시${+b ? ' ' + +b + '분' : ''}부터 ${+c2}시${+d ? ' ' + +d + '분' : ''}까지`)
-    .replace(/(\d{1,2}):(\d{2})/g, (m, a, b) => `${+a}시${+b ? ' ' + +b + '분' : ''}`)
+    .replace(/(\d{1,2}):(\d{2})\s*~\s*(\d{1,2}):(\d{2})/g, (m, a, b, c2, d) => `${sayHM(a, b)}부터 ${sayHM(c2, d)}까지`)
+    .replace(/(\d{1,2}):(\d{2})/g, (m, a, b) => sayHM(a, b))
+    .replace(/(?<![\d:])(1[3-9]|2[0-3])시/g, (m, a) => sayHM(a, 0))
     .replace(/\bB(\d)\b/g, '지하 $1층').replace(/\b(\d)F\b/g, '지상 $1층')
     .replace(/(\d)-(\d) 칸/g, '$1 다시 $2번 칸').replace(/(\d)-(\d)/g, '$1 다시 $2')
-    .replace(/(\d)m\b/g, '$1미터').replace(/↔/g, '에서 ').replace(/[·•|]/g, ', ').replace(/\.\s*\./g, '.').replace(/\s+/g, ' ').replace(/\s+([.,])/g, '$1').trim();
+    .replace(/(\d)m\b/g, '$1미터').replace(/\s*→\s*/g, ', ').replace(/↔/g, '에서 ').replace(/[·•|]/g, ', ')
+    .replace(/\s*\([^()]*\)(?=[가-힣])/g, '').replace(/\(([^()]*)\)/g, ', $1, ')
+    .replace(/\.(?=[가-힣A-Za-z])/g, '. ').replace(/\s+/g, ' ').replace(/\s+([.,])/g, '$1').replace(/([.,])(?:\s*[.,])+/g, '$1').replace(/^[.,\s]+/, '').replace(/,\s*$/, '.').trim();
+  // 같은 문장이 요약과 본문에 겹치면 한 번만
+  const seen = new Set();
+  return t.split(/(?<=[.?!])\s+/).filter(x => { const k = x.replace(/[\s.,]/g, ''); if (!k || seen.has(k)) return false; seen.add(k); return true; }).join(' ');
 }
 function speakBar(pane) {
   if (!SPEECH) return '';
   const on = sp.on && sp.pane === pane;
-  return `<div class="speak" role="group" aria-label="음성 안내"><button class="sayall ${on ? 'on' : ''}" data-sayall="${pane}" aria-pressed="${on}">${on ? I.stop + ' 그만 듣기' : I.spk + (pane === 'route' ? ' 가는 길 소리로 듣기' : ' 공연 후 안내 듣기')}</button><button class="rate" data-rate>말하기 속도: ${sp.rate < 1 ? '천천히' : '보통'}</button></div>`;
+  return `<div class="speak" role="group" aria-label="음성 안내"><button class="sayall ${on ? 'on' : ''}" data-sayall="${pane}" aria-pressed="${on}">${on ? I.stop + ' 그만 듣기' : I.spk + (pane === 'route' ? ' 가는 길 소리로 듣기' : ' 공연 후 안내 듣기')}</button><button class="rate" data-rate>말하기 속도: ${sp.rate < 1 ? '천천히' : '보통'}</button>${voicePicker()}</div>`;
 }
 function stopSpeak() { if (!SPEECH) return; sp.on = false; sp.idx = -1; sp.queue = []; speechSynthesis.cancel(); markSpeaking(); refreshBars(); }
 function refreshBars() { document.querySelectorAll('.speak').forEach(b => { const p = b.querySelector('[data-sayall]').dataset.sayall; b.outerHTML = speakBar(p); }); }
@@ -128,7 +151,7 @@ function sayList(pane, items, startIdx) {
     const el = document.querySelectorAll(`#pane-${pane} .step`)[it.step];
     if (el) el.scrollIntoView({block:'nearest', behavior:'smooth'});
     const u = new SpeechSynthesisUtterance(it.text);
-    u.lang = 'ko-KR'; u.rate = sp.rate; const v = koVoice(); if (v) u.voice = v;
+    u.lang = 'ko-KR'; u.rate = sp.rate; try { const v = koVoice(); if (v) u.voice = v; } catch(err) {}
     u.onend = () => { if (sp.on) next(i + 1); };
     u.onerror = () => stopSpeak();
     speechSynthesis.speak(u);
@@ -145,7 +168,14 @@ function sayPane(pane) {
   steps.forEach((el, i) => items.push({step:i, text:`${i + 1}단계. ` + speakable(el)}));
   sayList(pane, items, 0);
 }
-if (SPEECH) { speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = () => {}; }
+if (SPEECH) { speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = () => { if (!document.activeElement || !document.activeElement.matches('[data-voice]')) refreshBars(); }; }
+document.addEventListener('change', e => {
+  const s2 = e.target.closest('[data-voice]'); if (!s2) return;
+  sp.voice = s2.value; try { localStorage.setItem('pyeonhanVoice', sp.voice); } catch(err) {}
+  document.querySelectorAll('[data-voice]').forEach(x => { if (x !== s2) x.value = sp.voice; });
+  if (sp.on && sp.pane !== 'map') sayPane(sp.pane);
+  else { stopSpeak(); const u = new SpeechSynthesisUtterance('안녕하세요. 이 목소리로 안내할게요.'); u.lang = 'ko-KR'; u.rate = sp.rate; try { const v = koVoice(); if (v) u.voice = v; } catch(err) {} speechSynthesis.speak(u); }
+});
 
 
 // ---------- 말로 하는 길 안내 (경로 꺾임·거리·주변 표지를 문장으로) ----------
@@ -533,6 +563,23 @@ function lastTrainHTML(T, v) {
   ${others.length ? `<details><summary>다른 역·노선 막차 보기</summary>${others.map(o => o.html).join('')}</details>` : ''}
   <p class="meta">표의 '가는 곳'까지 가거나 그 전에 내리면 그 열차를 탈 수 있어요. 나설 시각은 걷는 시간에 엘리베이터·개찰구 여유 10분을 더해 계산했어요. 서울교통공사 시간표(${D.lastTrain.asof} 기준)이며, 음력 명절·대체공휴일은 역에 확인하세요.</p></div>`;
 }
+// 출발역 방향 막차: 도착 노선을 거꾸로 타고 환승역(없으면 출발역)까지 가는 열차 중 가장 늦은 것
+function linePath(ref, a, b) {
+  const adj = new Map(), add = (p, q) => (adj.get(p) || adj.set(p, []).get(p)).push(q);
+  for (const s of metroGraph().lines[ref] || []) for (let i = 1; i < s.length; i++) { add(s[i-1], s[i]); add(s[i], s[i-1]); }
+  const prev = new Map([[a, null]]), Q = [a];
+  while (Q.length) { const u = Q.shift(); if (u === b) break; for (const w of adj.get(u) || []) if (!prev.has(w)) { prev.set(w, u); Q.push(w); } }
+  if (!prev.has(b)) return null;
+  const p = []; for (let u = b; u; u = prev.get(u)) p.unshift(u); return p;
+}
+function homeTrain(T, x) {
+  const R = pickedRoute(); if (!R || R[0].x.s.id !== x.s.id) return null;
+  const legs = R[0].legs, L = legs[legs.length - 1], arr = L.st[L.st.length - 1], target = L.st[0];
+  const ok = lastTrains(x.s, T.start).filter(r => !r.to.includes('급행')).filter(r => { if (r.to === target) return true; const p = linePath(L.ref, arr, r.to); return p && p.includes(target); });
+  if (!ok.length) return null;
+  const last = ok.reduce((a, b) => b.at > a.at ? b : a), by = addMin(last.at, -(mins(x.p.m) + 10));
+  return {to:last.to, at:last.at, by, miss:T.leave > by, ref:L.ref, via:legs.length > 1 ? target : null};
+}
 
 function miniChart(T) {
   const A = D.exit25, mx = Math.max(...A.event), n = A.event.length, W = 330, H = 96, bw = W / n;
@@ -548,11 +595,10 @@ function renderAfter() {
   h += `<div class="rhead"><div class="big">${T.end ? `${hm(T.leave)} 이후 나서기` : '끝나고 70분 뒤 나서기'}</div><div class="meta">${T.end ? `공연 끝 ${hm(T.end)} · 가장 붐빌 때 ${hm(addMin(T.end, 20))}~${hm(addMin(T.end, 40))}` : '끝나고 20~40분 뒤가 가장 붐벼요'}</div>${miniChart(T)}</div>`;
   h += '<ol class="steps rows">';
   if (T.end && st.way === 'subway') {
-    const x = mainExit(v), t = ltTable(T, x);
-    if (t) {
-      const f = [...t.fulls].sort((p, q) => p.at - q.at)[0], miss = t.fulls.filter(z => z.miss);
-      h += row(I.train, `막차 ${esc(f.to.replace('(급행)', ''))}행 ${hm(f.at)}`, `${hm(f.by)}까지 공연장에서 나서기${t.fulls.length > 1 ? ` · 외 ${t.fulls.length - 1}방향` : ''}`, miss.length ? chip('bad', '놓칠 수 있음') : chip('ok', '여유'), lastTrainHTML(T, v));
-    }
+    const x = mainExit(v), full = lastTrainHTML(T, v), H = homeTrain(T, x);
+    if (H) h += row(I.train, `막차 ${esc(H.to)}행 ${hm(H.at)}`, '출발역 기준', H.miss ? chip('bad', '놓칠 수 있음') : chip('ok', '여유'),
+      `<p>${esc(st.from)}역으로 가려면 ${esc(x.s.name)} ${esc(lineName(H.ref))} <b>${esc(H.to)}행 ${hm(H.at)}</b> 열차가 막차예요. 공연장에서 <b>${hm(H.by)}</b>까지 나서면 탈 수 있어요.</p>${H.via ? `<p class="meta">갈아타는 ${esc(H.via)}역의 막차는 역에서 한 번 더 확인하세요.</p>` : ''}` + full);
+    else if (full) h += row(I.train, '막차 확인', '', '', full);
   }
   h += row(I.info, '오래 못 기다린다면', '끝나기 10분 전에 먼저 나서기', '', `<p>끝나기 10분 전은 가장 붐빌 때의 3분의 1 정도예요. 엘리베이터와 출구 앞 줄도 이때 가장 짧아요.</p>`);
   h += row(I.flag, '기다리는 동안', '화장실 먼저 · 실내에서 쉬기', '', `<p>공연장 근처 화장실을 먼저 들르고, 출구 쪽 혼잡이 줄 때까지 실내에서 쉬세요.</p>`);
@@ -820,11 +866,14 @@ async function loadReports() {
   catch(e) { live.reports = null; $('#reportBtn').hidden = true; }
   renderReports(); if (venue()) { renderRoute(); } drawMap();
 }
+let rsort = 'new'; try { rsort = localStorage.getItem('pyeonhanRsort') || 'new'; } catch(e) {}
 function renderReports() {
   const box = $('#reports'); if (!live.reports) { box.innerHTML = ''; return; }
-  const v = venue(), L = [...live.reports].sort((a, b) => (doubted(a) - doubted(b)) || (score(b) - score(a)) || (v ? dist(a.ll, vll(v)) - dist(b.ll, vll(v)) : b.at - a.at)).slice(0, 12);
-  box.innerHTML = `<h3>최근 30일 현장 제보 <small>${live.reports.length}건</small></h3>` + (L.length ? `<ul class="rlist">${L.map(r => `<li class="${doubted(r) ? 'doubt' : ''}"><span class="rk ${r.kind === 'good' ? 'g' : ''}">${esc(RK[r.kind])}</span>${doubted(r) ? ' <span class="dtag">확인이 엇갈려요</span>' : ''} <span class="meta">${ago(r.at)}${v ? ` · ${esc(v.name)}에서 약 ${r10(dist(r.ll, vll(v)))}m` : ''}</span>${r.text ? `<p>${esc(r.text)}</p>` : ''}<div class="rb"><button data-vote="ok" data-id="${r.id}" aria-label="저도 봤어요, 지금 ${r.ok || 0}명">👍 저도 봤어요 <b>${r.ok || 0}</b></button><button data-vote="flag" data-id="${r.id}" aria-label="지금은 아니에요, 지금 ${r.flag || 0}명">👎 지금은 아니에요 <b>${r.flag || 0}</b></button></div></li>`).join('')}</ul>` : '<p class="meta">아직 제보가 없어요. 다니다 불편한 곳이 있으면 알려 주세요.</p>')
-    + `<p class="meta">제보는 이용자가 남긴 정보라 사실과 다를 수 있어요. '저도 봤어요'가 많은 제보가 위에 나오고, '지금은 아니에요'가 더 많으면 아래로 내려가 흐리게 보여요. '지금은 아니에요'가 3명 이상이면서 더 많으면 숨겨지고, 모든 제보는 30일 뒤 사라져요.</p>`;
+  const v = venue(), top = rsort === 'top';
+  const L = [...live.reports].sort((a, b) => (doubted(a) - doubted(b)) || (top ? (score(b) - score(a)) || (b.at - a.at) : (b.at - a.at))).slice(0, 12);
+  const sb = (k, t) => `<button data-rsort="${k}" aria-pressed="${rsort === k}">${t}</button>`;
+  box.innerHTML = `<h3>최근 30일 현장 제보 <small>${live.reports.length}건</small></h3>` + (live.reports.length > 1 ? `<div class="rsort" role="group" aria-label="제보 정렬">${sb('new', '최신순')}${sb('top', '추천순')}</div>` : '') + (L.length ? `<ul class="rlist">${L.map(r => `<li class="${doubted(r) ? 'doubt' : ''}"><span class="rk ${r.kind === 'good' ? 'g' : ''}">${esc(RK[r.kind])}</span>${doubted(r) ? ' <span class="dtag">확인이 엇갈려요</span>' : ''} <span class="meta">${ago(r.at)}${v ? ` · ${esc(v.name)}에서 약 ${r10(dist(r.ll, vll(v)))}m` : ''}</span>${r.text ? `<p>${esc(r.text)}</p>` : ''}<div class="rb"><button data-vote="ok" data-id="${r.id}"><span aria-hidden="true">👍</span> 저도 봤어요 <b>${r.ok || 0}</b><span class="sr">명</span></button><button data-vote="flag" data-id="${r.id}"><span aria-hidden="true">👎</span> 지금은 아니에요 <b>${r.flag || 0}</b><span class="sr">명</span></button></div></li>`).join('')}</ul>` : '<p class="meta">아직 제보가 없어요. 다니다 불편한 곳이 있으면 알려 주세요.</p>')
+    + `<p class="meta">제보는 이용자가 남긴 정보라 사실과 다를 수 있어요. 추천순은 '저도 봤어요'가 많은 제보가 위에 나와요. '지금은 아니에요'가 더 많으면 어느 순서든 맨 아래로 내려가요. '지금은 아니에요'가 3명 이상이면서 더 많으면 숨겨지고, 모든 제보는 30일 뒤 사라져요.</p>`;
 }
 let pick = false;
 function setPick(on) {
@@ -878,6 +927,7 @@ document.addEventListener('click', e => {
   else if (b.dataset.fprev !== undefined && follow) { follow.i = Math.max(0, follow.i - 1); drawMap(); if (sp.on) sayFollow(); }
   else if (b.dataset.fsay !== undefined && follow) { follow.voice = true; sayFollow(); }
   else if (b.dataset.fexit !== undefined) { stopFollow(); }
+  else if (b.dataset.rsort) { rsort = b.dataset.rsort; try { localStorage.setItem('pyeonhanRsort', rsort); } catch(e) {} renderReports(); const q = document.querySelector(`[data-rsort="${rsort}"]`); if (q) q.focus(); }
   else if (b.id === 'reportBtn') setPick(true);
   else if (b.id === 'pickCancel') setPick(false);
   else if (b.id === 'pickOk') openReport(llFromSvg(vb.x + vb.w / 2, vb.y + vb.h / 2));

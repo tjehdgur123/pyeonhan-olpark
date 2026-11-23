@@ -69,6 +69,7 @@ svg.i{width:1.2em;height:1.2em;flex:none;vertical-align:-.22em}
 .pickbar{position:absolute;left:8px;right:8px;bottom:8px;background:var(--surface);border-radius:12px;box-shadow:var(--shadow);padding:10px 12px;z-index:3}.pickbar p{margin:0 0 8px;font-size:0.9375rem}.pickbar div{display:flex;gap:6px;flex-wrap:wrap}.pickbar button{min-height:44px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-weight:700;cursor:pointer}.pickbar button.pri{background:var(--blueBg);border-color:var(--blueBg);color:#fff}
 .mapwrap:focus-visible{outline:3px solid var(--yel);outline-offset:-3px}
 .reportrow{padding:0 12px}.reports{padding:4px 12px 8px}.reports h3{font-size:1rem;margin:12px 0 6px}.reports h3 small{color:var(--mute);font-weight:500}
+.rsort{display:flex;gap:6px;margin:4px 0 8px}.rsort button{min-height:40px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;font-size:0.875rem}.rsort button[aria-pressed=true]{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:700}
 .rlist{list-style:none;margin:0;padding:0}.rlist li{padding:10px 0;border-bottom:1px solid var(--line)}.rlist p{margin:4px 0 0}.rk{font-weight:700;color:var(--warn)}.rk.g{color:var(--ok)}.rb{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}.rb b{margin-left:4px}.rlist li.doubt{background:var(--bg);padding-left:10px;border-left:3px dashed var(--line)}.dtag{font-size:0.75rem;border:1px solid var(--line);border-radius:999px;padding:1px 8px;color:var(--mute)}.rb button{min-height:40px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;font-size:0.875rem}
 .kinds{border:0;padding:0;margin:8px 0;display:grid;gap:6px}.kinds legend{font-weight:700;margin-bottom:6px}.kinds label{display:flex;gap:10px;align-items:center;min-height:48px;padding:0 12px;border:1.5px solid var(--line);border-radius:12px;cursor:pointer}.kinds label:has(input:checked){border-color:var(--blue);background:var(--blueSoft)}.kinds input{width:20px;height:20px;accent-color:var(--blueBg)}
 .tx{display:grid;gap:6px;font-weight:700;margin-top:8px}.tx textarea{font:inherit;font-weight:400;padding:10px;border-radius:10px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink)}.err{color:#c92a2a;min-height:1.2em;margin:4px 0}
@@ -88,7 +89,7 @@ svg.i{width:1.2em;height:1.2em;flex:none;vertical-align:-.22em}
 .srow .ic.y{background:none}.srow .ic.warn{background:var(--warnBg);color:var(--warn)}.srow .ic.blue{background:var(--blueBg);color:#fff}.srow .ic.lpwrap{background:none}
 .srow .tx{flex:1;min-width:0;display:flex;flex-direction:column}.srow .tx b{font-size:1rem;line-height:1.3}.srow .tx small{color:var(--mute);font-size:0.8125rem;line-height:1.35;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .srow .chev{color:var(--mute);transition:transform .2s;flex:none}.srow details[open] .chev{transform:rotate(180deg)}
-.srow .body{padding:0 2px 14px calc(2.25rem + 14px)}.srow .body .say{margin-top:6px;display:inline-flex;gap:6px;align-items:center;min-height:40px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+.srow .body{padding:0 2px 14px calc(2.25rem + 14px)}.srow .body .say{width:auto;height:auto;white-space:nowrap;flex-direction:row;place-items:normal;margin-top:6px;display:inline-flex;gap:6px;align-items:center;min-height:40px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
 .chip{flex:none;font-size:0.75rem;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap}.chip.ok{background:var(--okBg);color:var(--ok)}.chip.bad{background:light-dark(#fde8e8,#3a1616);color:light-dark(#b42318,#ff9b9b)}.chip.unk{background:var(--bg);color:var(--mute);border:1px solid var(--line)}.chip.warnc{background:var(--warnBg);color:var(--warn)}
 .lp{display:inline-grid;place-items:center;min-width:2.25rem;height:1.6rem;padding:0 6px;border-radius:999px;color:#fff;font-size:0.8125rem;font-weight:700}
 .pill.sm{font-size:0.75rem;padding:2px 8px}
@@ -150,8 +151,9 @@ details.alt summary{min-height:44px;display:flex;align-items:center;cursor:point
 .altrow{padding:10px 0;border-top:1px solid var(--line)}
 
 .speak{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
-.sayall{min-height:48px;padding:6px 16px;border-radius:12px;border:0;background:var(--blueBg);color:#fff;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:8px;flex:1 1 auto;justify-content:center}
+.sayall{flex-basis:100% !important;min-height:48px;padding:6px 16px;border-radius:12px;border:0;background:var(--blueBg);color:#fff;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:8px;flex:1 1 auto;justify-content:center}
 .sayall.on{background:#d9480f}
+.voice{flex:1 1 11rem;min-width:0;display:inline-flex;align-items:center;gap:6px;min-height:48px;padding:0 4px 0 12px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);font-size:0.875rem;max-width:100%}.voice span{flex:none}.voice select{flex:1;min-width:0;min-height:44px;border:0;background:transparent;color:var(--ink);font:inherit;cursor:pointer;text-overflow:ellipsis}
 .rate{min-height:48px;padding:6px 14px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);cursor:pointer;font-size:0.875rem}
 .turns{margin:8px 0 4px;padding-left:1.3em;font-size:0.9375rem}.turns li{margin:4px 0;padding-left:2px}
 .sh{display:flex;align-items:flex-start;gap:8px}.sh h3{flex:1}
@@ -304,9 +306,9 @@ footer li{margin:4px 0}
  <select id="venueSel" aria-label="공연장 선택"></select>
 </div></dialog>
 
-<script src="data.js?v=20261123q"></script>
-<script src="config.js?v=20261123q"></script>
-<script src="events.js?v=20261123q"></script>
-<script src="app.js?v=20261123q"></script>
+<script src="data.js?v=20261123r"></script>
+<script src="config.js?v=20261123r"></script>
+<script src="events.js?v=20261123r"></script>
+<script src="app.js?v=20261123r"></script>
 </body>
 </html>

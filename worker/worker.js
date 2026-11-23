@@ -1,6 +1,7 @@
 // 편한길 올팍 - Cloudflare Worker
 // 1) 서울교통공사 교통약자이용정보 중계 (비밀값 DATA_GO_KR_KEY: 공공데이터포털 '일반 인증키(Encoding)')
-//    /elevators  엘리베이터 가동 (2분 재사용)
+//    /elevators  엘리베이터 가동, 올림픽공원 주변 역 (2분 재사용)
+//    /elevators/all  엘리베이터 가동, 서울교통공사 전체 역 (10분 재사용, 최대 10쪽)
 //    /helpers    교통약자 도우미 운영 현황 (6시간 재사용)
 //    /lifts      휠체어리프트 (6시간)
 //    /safeplfm   안전발판 보유 현황 (6시간)
@@ -113,16 +114,17 @@ export default {
     const headers = {...H, 'Cache-Control': 'max-age=120'};
     const op = OPS[name];
     if (!op) return new Response('{"error":"not found"}', {status: 404, headers});
-    const m = memo[name];
-    if (m && Date.now() - m.t < op[1]) return new Response(m.body, {headers});
+    const all = parts[1] === 'all', mk = name + (all ? 'all' : '');
+    const m = memo[mk];
+    if (m && Date.now() - m.t < op[1] * (all ? 5 : 1)) return new Response(m.body, {headers});
     try {
       const rows = [];
-      for (let p = 1; p <= 3; p++) {
+      for (let p = 1; p <= (all ? 10 : 3); p++) {
         const r = await fetch(`https://apis.data.go.kr/B553766/wksn/${op[0]}?serviceKey=${env.DATA_GO_KR_KEY}&pageNo=${p}&numOfRows=1000&dataType=JSON`);
         const j = await r.json();
         let it = j?.response?.body?.items?.item || [];
         if (!Array.isArray(it)) it = [it];
-        rows.push(...it.filter(x => STATIONS.test(x.stnNm || '')));
+        rows.push(...it.filter(x => all || STATIONS.test(x.stnNm || '')));
         if (it.length < 1000) break;
       }
       const items = name === 'elevators' ? rows.map(x => ({
@@ -131,7 +133,7 @@ export default {
       })) : rows;
       const at = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 16).replace('T', ' ');
       const body = JSON.stringify({at, items});
-      if (items.length) memo[name] = {t: Date.now(), body};
+      if (items.length) memo[mk] = {t: Date.now(), body};
       return new Response(body, {headers});
     } catch (e) {
       if (m) return new Response(m.body, {headers});

@@ -28,19 +28,20 @@ const MODES = [{id:'wheel', label:'휠체어', speed:55, icon:I.wheel}, {id:'str
 const WAYS = [{id:'subway', label:'지하철', icon:I.train}, {id:'car', label:'자동차', icon:I.car}];
 const st = {show:null, venue:null, mode:'wheel', way:'subway', tab:'route', layers:{toilet:true, center:true, store:false, path:true, report:true}};
 const live = {parking:null, elev:null, ramp:null, reports:null};
-try { const s = JSON.parse(localStorage.getItem('pyeonhan') || '{}'); if (s.mode) st.mode = s.mode; if (s.way) st.way = s.way; if (s.fs) setFs(s.fs); else if (s.big) setFs(1); } catch(e) {}
+try { const s = JSON.parse(localStorage.getItem('pyeonhan') || '{}'); if (s.from) st.from = s.from; if (s.mode) st.mode = s.mode; if (s.way) st.way = s.way; if (s.fs) setFs(s.fs); else if (s.big) setFs(1); } catch(e) {}
 // 공유 링크: ?v=공연장&t=시작시각&n=공연명&m=이동방법&w=교통수단
 const Q = new URLSearchParams(location.search), linkShow = (() => {
   const v = Q.get('v'), t = Q.get('t'); if (!v) return null;
   if (['wheel','stroller','slow'].includes(Q.get('m'))) st.mode = Q.get('m');
   if (['subway','car'].includes(Q.get('w'))) st.way = Q.get('w');
+  if (Q.get('f')) st.from = Q.get('f').slice(0, 20);
   if (!D.venues.some(x => x.id === v)) return null;
   st.venue = v; const at = t ? new Date(t) : null;
   return at && !isNaN(at) ? {title:(Q.get('n') || '').slice(0, 80), venue:v, at} : null;
 })();
 let linkOn = !!linkShow;
 const dropLink = () => { if (location.search) { linkOn = false; history.replaceState(null, '', location.pathname + location.hash); } };
-const save = () => { try { localStorage.setItem('pyeonhan', JSON.stringify({mode:st.mode, way:st.way, fs:fsLevel})); } catch(e) {} };
+const save = () => { try { localStorage.setItem('pyeonhan', JSON.stringify({mode:st.mode, way:st.way, fs:fsLevel, from:st.from || ''})); } catch(e) {} };
 
 // ---------- 색 대비: 노선색 위 글자는 대비 4.5 이상인 색으로 ----------
 const lum = hex => { const c = hex.replace('#','').match(/../g).map(x => { const v = parseInt(x, 16) / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126*c[0] + 0.7152*c[1] + 0.0722*c[2]; };
@@ -228,7 +229,7 @@ function renderTrip() {
 }
 function timesFor() {
   const s = curShow(), v = venue(); if (!s) return {};
-  const walkM = st.way === 'subway' ? exitsFor(v)[0].p.m : 150;
+  const walkM = st.way === 'subway' ? mainExit(v).p.m : 150;
   const end = addMin(s.at, s.dur);
   return {start:s.at, end, arrive:addMin(s.at, -(60 + mins(walkM))), leave:addMin(end, 70)};
 }
@@ -246,12 +247,119 @@ function elevNote(S) {
     ? `<div class="note warn">${I.warn}<span><b>지금 멈춘 엘리베이터</b> · ${stop.map(x => `${esc(x.loc)}(${esc(x.floors)})`).join(', ')}<br>반대 방면 승강장 엘리베이터를 이용하거나 역에 도움을 요청하세요. <span class="meta">${esc(live.elev.at)} 기준</span></span></div>`
     : `<div class="note ok">${I.ok}<span>이 역 엘리베이터 ${mine.length}대 모두 운행 중 <span class="meta">${esc(live.elev.at)} 기준</span></span></div>`;
 }
+// ---------- 출발역부터 (수도권 전철 노선 그래프) ----------
+const LINE_NAME = {'수인·분당':'수인분당선', '경의·중앙':'경의중앙선', '신분당':'신분당선', '공항철도':'공항철도', '경강':'경강선', '경춘':'경춘선', '서해':'서해선', 'I2':'인천2호선', '인천1':'인천1호선', 'U':'의정부경전철', '용인':'용인경전철', '김포 골드라인':'김포골드라인', 'Silim':'신림선'};
+const lineName = r => /^\d$/.test(r) ? r + '호선' : (LINE_NAME[r] || r);
+const ARRIVE = [['올림픽공원', '5', 'olpark5'], ['올림픽공원', '9', 'olpark9'], ['몽촌토성', '8', 'mongchon'], ['한성백제', '9', 'hanseong']];
+const RIDE = 2.2, XFER = 10;   // 역 사이 평균 2.2분, 교통약자 환승 10분(엘리베이터 동선)
+let MG = null;
+function metroGraph() {
+  if (MG) return MG;
+  const adj = new Map(), lines = {}, add = (a, b, w, kind) => { (adj.get(a) || adj.set(a, []).get(a)).push([b, w, kind]); };
+  for (const [ref, s] of D.metro.lines) {
+    (lines[ref] ??= []).push(s);
+    for (let i = 1; i < s.length; i++) { const a = s[i-1] + '|' + ref, b = s[i] + '|' + ref; add(a, b, RIDE, 'ride'); add(b, a, RIDE, 'ride'); }
+  }
+  const byName = new Map();
+  for (const k of adj.keys()) { const n = k.split('|')[0]; (byName.get(n) || byName.set(n, []).get(n)).push(k); }
+  for (const [x, y] of D.metro.alias) { const A = byName.get(x) || [], B = byName.get(y) || []; byName.set(x, [...new Set([...A, ...B])]); byName.set(y, byName.get(x)); }
+  for (const ks of byName.values()) for (const a of ks) for (const b of ks) if (a !== b) add(a, b, XFER, 'xfer');
+  return MG = {adj, byName, lines, names:[...byName.keys()].sort()};
+}
+function metroRoutes(from) {
+  const G = metroGraph(), starts = G.byName.get(from); if (!starts) return [];
+  const dist = new Map(), prev = new Map(), Q = [];
+  for (const s of starts) { dist.set(s, 0); Q.push([0, s]); }
+  while (Q.length) {
+    Q.sort((p, q) => p[0] - q[0]); const [d, u] = Q.shift();
+    if (d > dist.get(u)) continue;
+    for (const [w, c] of G.adj.get(u) || []) { const nd = d + c; if (nd < (dist.get(w) ?? 1e9)) { dist.set(w, nd); prev.set(w, u); Q.push([nd, w]); } }
+  }
+  const v = venue(), ex = exitsFor(v);
+  return ARRIVE.map(([n, ref, sid]) => {
+    const k = n + '|' + ref; if (!dist.has(k)) return null;
+    const x = ex.find(e => e.s.id === sid); if (!x) return null;
+    const path = []; for (let u = k; u; u = prev.get(u)) path.unshift(u);
+    const legs = []; let cur = null, xf = 0;
+    for (const p of path) { const [nm, r] = p.split('|'); if (!cur || cur.ref !== r) { if (cur) { if (cur.st.length === 1) legs.pop(); else xf++; } cur = {ref:r, st:[nm]}; legs.push(cur); } else cur.st.push(nm); }
+    const ride = legs.reduce((s, l) => s + (l.st.length - 1) * RIDE, 0), xfer = (legs.length - 1) * XFER;
+    return {sid, x, legs, ride, xfer, total:ride + xfer + mins(x.p.m)};
+  }).filter(Boolean).filter(r => r.legs.length).sort((a, b) => a.total - b.total)
+    .filter((r, i, A) => A.findIndex(q => q.sid === r.sid) === i);
+}
+function legDir(l) {
+  const n = l.st.length, p = l.st[n - 2], b = l.st[n - 1];
+  for (const s of metroGraph().lines[l.ref] || []) {
+    for (let k = 1; k < s.length; k++) {
+      const fwd = s[k-1] === p && s[k] === b, back = s[k-1] === b && s[k] === p;
+      if (!fwd && !back) continue;
+      if (s[0] === s[s.length - 1]) return `${l.st[1]} 방향 (${fwd ? '외선순환' : '내선순환'})`;
+      return `${fwd ? s[s.length - 1] : s[0]} 방면`;
+    }
+  }
+  return `${l.st[1]} 방향`;
+}
+const eun = w => { const c = w.charCodeAt(w.length - 1); return c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28 ? '은' : '는'; };
+const elevKey = n => n.replace(/\(.*?\)/g, '').replace(/역$/, '').trim();
+function stationElev(name, ref) {
+  const E = live.elevAll; if (!E || E === 'fail') return null;
+  const ln = /^\d$/.test(ref) ? ref + '호선' : null;
+  const mine = E.items.filter(x => elevKey(x.station) === name && (!ln || x.line === ln));
+  return mine.length ? mine : null;
+}
+function elevLine(name, ref) {
+  if (live.elevAll === undefined) return `<p class="meta">엘리베이터 실시간 정보를 불러오는 중…</p>`;
+  const m = stationElev(name, ref);
+  if (!m) return `<p class="meta">${esc(name)}역 ${esc(lineName(ref))}${eun(lineName(ref))} 엘리베이터 실시간 정보가 없어요. 필요하면 역에 확인하세요 (서울교통공사 1577-1234 · 코레일 1544-7788).</p>`;
+  const stop = m.filter(x => x.status === 'S'), exits = [...new Set(m.map(x => x.exit).filter(e => /^\d+$/.test(e)))].sort((p, q) => p - q);
+  const okN = m.filter(x => x.status === 'M').length, unk = m.length - okN - stop.length;
+  return (stop.length ? `<div class="note warn">${I.warn}<span><b>지금 멈춘 엘리베이터</b> · ${stop.map(x => esc(x.loc || x.exit)).join(', ')}<br><span class="meta">나머지 ${okN}대 운행 중 · ${esc(live.elevAll.at)} 기준</span></span></div>` : `<div class="note ok">${I.ok}<span>엘리베이터 ${okN}대 운행 중${unk ? ` (${unk}대는 상태 정보 없음)` : ''} <span class="meta">${esc(live.elevAll.at)} 기준</span></span></div>`)
+    + (exits.length ? `<p class="meta">엘리베이터 있는 출구: ${exits.map(e => `<span class="exit">${e}</span>`).join(' ')}</p>` : '');
+}
+async function loadElevAll() {
+  if (live.elevAll !== undefined || loadElevAll.busy || !C.LIVE_API) return;
+  loadElevAll.busy = true;
+  try { const r = await fetch(C.LIVE_API + '/elevators/all'); if (!r.ok) throw 0; const j = await r.json(); live.elevAll = j.items && j.items.length > 20 ? j : 'fail'; }
+  catch(e) { live.elevAll = 'fail'; }
+  if (venue()) renderRoute();
+}
+function pickedRoute() {
+  if (!st.from || st.way !== 'subway' || !venue()) return null;
+  const key = [st.from, st.venue, st.mode].join('|');
+  if (pickedRoute.k !== key) { pickedRoute.k = key; const R = metroRoutes(st.from); pickedRoute.v = R[0] ? R : null; }
+  return pickedRoute.v;
+}
+function mainExit(v) { const R = pickedRoute(); return R ? R[0].x : exitsFor(v)[0]; }
+function fromHTML(R, T) {
+  const opts = metroGraph().names.map(n => `<option value="${esc(n)}">`).join('');
+  const form = `<form class="fromform" id="fromForm"><label for="fromIn">집 근처 출발역</label><div><input id="fromIn" list="stList" autocomplete="off" placeholder="예: 노원" value="${esc(st.from || '')}"><button type="submit">확인</button>${st.from ? '<button type="button" id="fromClear">지우기</button>' : ''}</div><datalist id="stList">${opts}</datalist><p class="meta" id="fromErr" role="alert"></p></form>`;
+  if (!st.from) return `<div class="fromcard">${form}<p class="meta">출발역을 고르면 출발역·환승역 엘리베이터 상태와 갈아탈 곳까지 함께 알려 드려요.</p></div>`;
+  if (!R) return `<div class="fromcard">${form}<p class="meta">${esc(st.from)}역에서 가는 지하철 경로를 찾지 못했어요.</p></div>`;
+  const r = R[0], board = T.arrive ? addMin(T.arrive, -Math.round(r.ride + r.xfer)) : null;
+  return `<div class="fromcard">${form}<p><b>${esc(st.from)}역 → ${esc(r.x.s.name)}</b> · 지하철 약 ${Math.round(r.ride + r.xfer)}분 · 환승 ${r.legs.length - 1}번${board ? ` · <b>${hm(board)}</b>까지 ${esc(st.from)}역에서 타기` : ''}</p>
+  <p class="links"><a class="extlink" target="_blank" rel="noopener" href="https://map.kakao.com/link/to/${encodeURIComponent(`${r.x.s.name} ${r.x.e.no}번 출구 엘리베이터`)},${r.x.e.ll[0]},${r.x.e.ll[1]}">카카오맵에서 집부터 길찾기</a></p>
+  <p class="meta">집에서 출발역까지는 카카오맵이나 서울동행맵(저상버스 예약)을 함께 쓰세요. 카카오맵 목적지는 도착역 엘리베이터 출구로 정해져 있어요.</p></div>`;
+}
+function fromSteps(R) {
+  const r = R[0]; let h = '';
+  h += stepHTML('A', `${esc(st.from)}역 출발 전 확인`, elevLine(st.from, r.legs[0].ref));
+  r.legs.forEach((l, i) => {
+    const a = l.st[0], b = l.st[l.st.length - 1], n = l.st.length - 1;
+    if (i > 0) h += stepHTML('↔', `${esc(a)}역에서 ${esc(lineName(l.ref))}${/[선도]$/.test(lineName(l.ref)) && !/[선]$/.test(lineName(l.ref)) ? '로' : '으로'} 갈아타기`, `<p class="meta">교통약자 환승은 엘리베이터 동선이라 10분 정도 잡았어요.</p>` + elevLine(a, l.ref));
+    h += stepHTML(String.fromCharCode(66 + i), `${esc(lineName(l.ref))} ${esc(legDir(l))} 타기`, `<p>${esc(a)} → ${esc(b)} · ${n}개 역, 약 ${Math.round(n * RIDE)}분</p>`);
+  });
+  if (R.length > 1) h += `<li class="step"><span class="dot" aria-hidden="true">+</span><div><details class="alt"><summary>다른 경로 (${R.length - 1})</summary>${R.slice(1, 3).map(q => `<div class="altrow"><p style="margin:0"><b>${esc(q.x.s.name)}</b> ${esc(q.x.s.line)} 도착 · 지하철 약 ${Math.round(q.ride + q.xfer)}분 · 환승 ${q.legs.length - 1}번 · 출구에서 공연장 ${mins(q.x.p.m)}분</p><p class="meta">${q.legs.map(l => `${lineName(l.ref)} ${l.st[0]}→${l.st[l.st.length - 1]}`).map(esc).join(' · ')}</p></div>`).join('')}</details></div></li>`;
+  return h;
+}
+
 function renderRoute() {
   const v = venue(), m = mode(), s = curShow(), T = timesFor(), c = centerFor(v);
   let h = speakBar('route') + '<ol class="steps">';
   if (st.way === 'subway') {
-    const ex = exitsFor(v), best = ex[0], S = best.s;
-    h += stepHTML('1', '출발 전 확인', elevNote(S) + `<dl class="facts"><dt>${I.phone} 역 전화</dt><dd><a href="tel:${S.tel.replace(/-/g,'')}">${S.tel}</a> (${esc(S.name)} ${esc(S.line)})</dd>${S.ramp != null ? `<dt>안전발판</dt><dd>${S.ramp ? '있음 · 승강장 틈이 걱정되면 역에 요청' : '보유 정보 없음'}</dd>` : ''}</dl>`);
+    const R = pickedRoute(); if (st.from) loadElevAll();
+    h = speakBar('route') + fromHTML(R, T) + '<ol class="steps">' + (R ? fromSteps(R) : '');
+    const best = mainExit(v), S = best.s;
+    h += stepHTML('1', R ? '도착역 확인' : '출발 전 확인', elevNote(S) + `<dl class="facts"><dt>${I.phone} 역 전화</dt><dd><a href="tel:${S.tel.replace(/-/g,'')}">${S.tel}</a> (${esc(S.name)} ${esc(S.line)})</dd>${S.ramp != null ? `<dt>안전발판</dt><dd>${S.ramp ? '있음 · 승강장 틈이 걱정되면 역에 요청' : '보유 정보 없음'}</dd>` : ''}</dl>`);
     h += stepHTML('2', `${pill(S)} ${esc(S.name)}에서 내리기`, `<p>엘리베이터와 가까운 칸: <b>${esc(S.board)}</b></p>`);
     h += stepHTML('3', `<span class="exit">${best.e.no}</span>번 출구 엘리베이터로 지상까지`, `<p class="meta">${esc(S.ground)}</p>${S.warn ? `<div class="note warn">${I.warn}<span>${esc(S.warn)}</span></div>` : ''}`, true);
     h += stepHTML('4', `${esc(v.name)}까지 약 ${mins(best.p.m)}분`, `<p>${best.p.real ? `계단을 피한 길로 약 <b>${Math.round(best.p.m)}m</b> (${m.label} 기준)` : `약 ${Math.round(best.p.m)}m 추정 (직선거리 기반, ${m.label} 기준)`}</p>${best.p.steps ? `<div class="note warn">${I.warn}<span>계단 없는 길을 찾지 못해 일부 구간에 계단이 있을 수 있어요.</span></div>` : ''}${best.p.real ? `<ol class="turns">${directions(best.p.pts, v, `${best.s.name} ${best.e.no}번 출구`).map(t => `<li>${t}</li>`).join('')}</ol><p class="meta">방향과 거리는 OpenStreetMap 보행로 기준 추정이에요. 현장 안내판을 함께 확인하세요.</p>` : ''}`);
@@ -274,7 +382,7 @@ function renderRoute() {
       <dt>가까운 화장실</dt><dd>${tl.map(t => `${esc(t.p)} ${esc(t.d)} (${Math.round(t.m)}m)`).join(' · ')}</dd></dl>${w}`);
   h += '</ol>';
   if (st.way === 'subway') {
-    const seen = new Set([exitsFor(v)[0].s.id]);
+    const seen = new Set([mainExit(v).s.id]);
     const alts = exitsFor(v).filter(x => !seen.has(x.s.id) && seen.add(x.s.id)).slice(0, 3);
     h += `<details class="alt"><summary>다른 역으로 가기 (${alts.length})</summary>${alts.map(x => `<div class="altrow"><p style="margin:0">${pill(x.s)} <b>${esc(x.s.name)}</b> <span class="exit">${x.e.no}</span>번 출구 → 약 ${mins(x.p.m)}분</p>${x.s.warn ? `<p class="meta">${esc(x.s.warn)}</p>` : ''}${elevNote(x.s)}</div>`).join('')}</details>`;
   }
@@ -307,7 +415,7 @@ function ltTable(T, x) {
   return {miss, html:`<table><caption>${esc(x.s.name)} ${esc(x.s.line)} · ${x.e.no}번 출구까지 약 ${mins(x.p.m)}분</caption><thead><tr><th scope="col">열차(가는 곳)</th><th scope="col">막차</th><th scope="col">공연장에서 나설 시각</th></tr></thead><tbody>${body}</tbody></table>`};
 }
 function lastTrainHTML(T, v) {
-  const all = exitsFor(v), seen = new Set(), per = all.filter(x => !seen.has(x.s.id) && seen.add(x.s.id));
+  const all = [mainExit(v), ...exitsFor(v)], seen = new Set(), per = all.filter(x => !seen.has(x.s.id) && seen.add(x.s.id));
   const main = ltTable(T, per[0]); if (!main) return '';
   const others = per.slice(1).map(x => ltTable(T, x)).filter(Boolean);
   const nm = m => esc(m.r.to.replace('(급행)', '')) + '행' + (m.r.to.includes('급행') ? ' 급행' : '');
@@ -335,7 +443,7 @@ function renderAfter() {
   <p class="meta">2025년 올림픽공원 주차장 입출차 약 240만 건 중 관객 8천 명 이상 공연일 77일을 분석했어요. 출차가 몰리기 시작한 시점을 공연 종료로 맞추고, 날마다 값의 가운데 값(중앙값)을 보여 줘요.</p>
   <ol class="steps" style="margin-top:12px">
    ${stepHTML('1', '기다리는 동안', '<p>공연장 근처 화장실을 먼저 들르고, 출구 쪽 혼잡이 줄 때까지 실내에서 쉬세요.</p>')}
-   ${stepHTML('2', '돌아가는 길', st.way === 'subway' ? `<p>올 때와 같은 <span class="exit">${exitsFor(v)[0].e.no}</span>번 출구 엘리베이터를 이용하세요.</p>` : `<p>공연이 끝나면 출차의 약 ${A.gates['동2문']}%가 동2문, ${A.gates['북2문']}%가 북2문, ${A.gates['남2문']}%가 남2문으로 몰려요.${v && v.gate ? ` 이 공연장 주차장은 <b>${esc(v.gate)}</b> 쪽이에요.` : ''} 종료 70분 뒤부터 나서면 기다림이 짧아요.</p>`)}
+   ${stepHTML('2', '돌아가는 길', st.way === 'subway' ? `<p>올 때와 같은 <span class="exit">${mainExit(v).e.no}</span>번 출구 엘리베이터를 이용하세요.</p>${(() => { const R = pickedRoute(); if (!R) return ''; const L = [...R[0].legs].reverse(); return `<p class="meta">집으로: ${L.map((l, i) => `${i ? `${esc(l.st[l.st.length - 1])}에서 ` : ''}${esc(lineName(l.ref))}`).join(' → ')} → ${esc(st.from)}역. 막차는 위 표에서 확인하세요.</p>`; })()}` : `<p>공연이 끝나면 출차의 약 ${A.gates['동2문']}%가 동2문, ${A.gates['북2문']}%가 북2문, ${A.gates['남2문']}%가 남2문으로 몰려요.${v && v.gate ? ` 이 공연장 주차장은 <b>${esc(v.gate)}</b> 쪽이에요.` : ''} 종료 70분 뒤부터 나서면 기다림이 짧아요.</p>`)}
    ${stepHTML('3', '택시가 필요하면', `<p><b>서울 장애인콜택시</b> <a class="tel" href="tel:15884388">1588-4388</a> (전화·문자, 앱 '장애인콜택시')</p><p class="meta">필요한 때 바로 접수하는 방식이 원칙이라, 공연이 끝나면 바로 접수하세요. 끝난 직후엔 대기가 길 수 있어요. 휠체어 이용 시 보호자 등 3명까지 함께 탈 수 있어요. 시각장애인은 복지콜 <a class="tel" href="tel:16004477">1600-4477</a>.</p><p class="meta">타는 곳은 콜센터에 공연장 이름과 가까운 출입문(${esc((v && v.gate) || '동2문')})을 함께 말하면 찾기 쉬워요.</p>`)}
   </ol>`;
   $('#pane-after').innerHTML = h;
@@ -353,7 +461,7 @@ const setVB = () => { const svg = $('#map'); svg.setAttribute('viewBox', `${vb.x
 function drawMap() {
   const v = venue() || {id:'', name:'', lat:0, lng:0}, svg = $('#map'), has = !!venue();
   let route = null;
-  if (has && st.way === 'subway') route = exitsFor(v)[0].p.pts;
+  if (has && st.way === 'subway') route = mainExit(v).p.pts;
   const mark = (ll, inner, title, off) => { const p = P(ll); return `<g class="sc" data-p="${p[0]},${p[1]}"><title>${esc(title)}</title>${off ? `<g transform="translate(${off[0]} ${off[1]})">${inner}</g>` : inner}</g>`; };
   const OFF = {'olpark5-2':[22,20], 'olpark9-3':[-26,6], 'olpark9-4':[4,-24]};
   let g = `<title id="mapTitle">올림픽공원 지도: ${esc(v.name)}까지 경로</title><rect x="-2000" y="-2000" width="${W+4000}" height="${H+4000}" fill="var(--bg)"/>`;
@@ -364,18 +472,18 @@ function drawMap() {
   if (route) g += `<polyline class="route" points="${pts(route)}" stroke-opacity=".25" stroke-width="12"/><polyline class="route anim" points="${pts(route)}"/>`;
   if (st.layers.toilet) g += D.fac.filter(f => f.k === '화장실').map(f => mark(f.ll, `<rect x="-11" y="-11" width="22" height="22" rx="5" fill="#2b8a3e"/><text y="4" font-size="11" fill="#fff" text-anchor="middle" font-weight="700">WC</text>`, `화장실 · ${f.p} ${f.d}`)).join('');
   if (st.layers.store) g += D.fac.filter(f => /편의점|식음료/.test(f.k)).map(f => mark(f.ll, `<circle r="8" fill="#7048e8" stroke="#fff" stroke-width="2"/>`, `${f.k} · ${f.p}`)).join('');
-  if (st.layers.report && live.reports) g += live.reports.map(r => mark(r.ll, r.kind === 'good' ? `<circle r="11" fill="#2b8a3e" stroke="#fff" stroke-width="2.5"/><path d="M-5 0l3.5 3.5L5-4" stroke="#fff" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>` : `<path d="M0-14 13 10H-13z" fill="#d9480f" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/><text y="7" font-size="14" font-weight="700" fill="#fff" text-anchor="middle">!</text>`, `현장 제보 · ${RK[r.kind]}${r.text ? ' · ' + r.text : ''} (${ago(r.at)})`)).join('');
+  if (st.layers.report && live.reports) g += live.reports.map(r => mark(r.ll, (doubted(r) ? '<g opacity=".4">' : '<g>') + (r.kind === 'good' ? `<circle r="11" fill="#2b8a3e" stroke="#fff" stroke-width="2.5"/><path d="M-5 0l3.5 3.5L5-4" stroke="#fff" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>` : `<path d="M0-14 13 10H-13z" fill="#d9480f" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/><text y="7" font-size="14" font-weight="700" fill="#fff" text-anchor="middle">!</text>`) + '</g>', `현장 제보 · ${RK[r.kind]}${r.text ? ' · ' + r.text : ''} (${ago(r.at)}, 저도 봤어요 ${r.ok || 0} · 지금은 아니에요 ${r.flag || 0})`)).join('');
   if (st.layers.center) g += D.centers.map(c => mark([c.lat,c.lng], `<circle r="15" fill="var(--yel)" stroke="#111" stroke-width="1.5"/><text y="6" font-size="17" text-anchor="middle" font-weight="700" fill="#111">i</text>`, `${c.name} · 휠체어 무료 대여`)).join('');
   g += D.venues.map(x => { const on = x.id === v.id; return mark(vll(x), `<circle r="${on ? 15 : 9}" fill="${on ? 'var(--blueBg)' : 'var(--mute)'}" stroke="#fff" stroke-width="3"/><text y="${on ? -24 : -15}" font-size="${on ? 24 : 16}" font-weight="${on ? 700 : 500}" text-anchor="middle" fill="var(--ink)" paint-order="stroke" stroke="var(--bg)" stroke-width="5">${esc(x.name)}</text>`, x.name); }).join('');
-  const best = has && st.way === 'subway' ? exitsFor(v)[0].id : '';
+  const best = has && st.way === 'subway' ? mainExit(v).id : '';
   D.stations.forEach(s => s.ev.forEach(e => { const id = s.id + '-' + e.no, on = id === best; g += mark(e.ll, `<rect x="-16" y="-16" width="32" height="32" rx="7" fill="${on ? 'var(--yel)' : '#fff'}" stroke="${s.color}" stroke-width="3.5"/><text y="6" font-size="18" font-weight="700" text-anchor="middle" fill="#111">${e.no}</text>`, `${s.name} ${s.line} ${e.no}번 출구 엘리베이터`, OFF[id]); }));
   [['몽촌토성역', D.stations[2].ev[0].ll, 0, -30], ['한성백제역', D.stations[3].ev[0].ll, 0, 44], ['올림픽공원역', D.stations[0].ev[0].ll, -10, 48]].forEach(([n, ll, dx, dy]) => { g += mark(ll, `<text x="${dx}" y="${dy}" font-size="19" font-weight="700" text-anchor="middle" fill="var(--ink)" paint-order="stroke" stroke="var(--bg)" stroke-width="5">${n}</text>`, n); });
   svg.innerHTML = g;
   fit(has ? (route || [vll(v), [centerFor(v).lat, centerFor(v).lng]]) : D.park);
-  const dirs = has && st.way === 'subway' && exitsFor(v)[0].p.real ? directions(exitsFor(v)[0].p.pts, v, `${exitsFor(v)[0].s.name} ${exitsFor(v)[0].e.no}번 출구`) : [];
+  const dirs = has && st.way === 'subway' && mainExit(v).p.real ? directions(mainExit(v).p.pts, v, `${mainExit(v).s.name} ${mainExit(v).e.no}번 출구`) : [];
   $('#mapsay').hidden = !SPEECH || !dirs.length;
   $('#mapdesc').innerHTML = dirs.length ? `<h3 style="margin:0 0 6px;font-size:16px">지도 내용 글로 보기</h3><ol class="turns">${dirs.map(t => `<li>${t}</li>`).join('')}</ol>` : '';
-  $('#mapnote').textContent = !has ? '공연을 고르면 엘리베이터 출구에서 공연장까지 계단 없는 길을 그려 드려요. 노란 숫자: 엘리베이터 출구, 노란 i: 휠체어 대여.' : st.way === 'subway' ? (exitsFor(v)[0].p.real ? '파란 선: 계단을 피한 보행로 (OpenStreetMap 보행로 기준).' : '파란 선: 출구에서 공연장까지 방향 (실제 길은 현장 안내를 따르세요).') : '노란 i: 휠체어 무료 대여 안내센터';
+  $('#mapnote').textContent = !has ? '공연을 고르면 엘리베이터 출구에서 공연장까지 계단 없는 길을 그려 드려요. 노란 숫자: 엘리베이터 출구, 노란 i: 휠체어 대여.' : st.way === 'subway' ? (mainExit(v).p.real ? '파란 선: 계단을 피한 보행로 (OpenStreetMap 보행로 기준).' : '파란 선: 출구에서 공연장까지 방향 (실제 길은 현장 안내를 따르세요).') : '노란 i: 휠체어 무료 대여 안내센터';
 }
 function fit(list) {
   const p = list.map(P), xs = p.map(a => a[0]), ys = p.map(a => a[1]);
@@ -447,7 +555,7 @@ function renderShows() {
 $('#layers').innerHTML = [['path','보행로'],['toilet','화장실'],['center','안내센터'],['store','편의점'],['report','현장 제보']].map(([k,l]) => `<button data-k="${k}" aria-pressed="${st.layers[k]}">${l}</button>`).join('');
 
 function shareURL() {
-  const s = curShow(), p = new URLSearchParams({v:st.venue, m:st.mode, w:st.way});
+  const s = curShow(), p = new URLSearchParams({v:st.venue, m:st.mode, w:st.way}); if (st.from && st.way === 'subway') p.set('f', st.from);
   if (s) { p.set('t', s.at.toISOString()); p.set('n', s.title.slice(0, 80)); }
   return location.origin + location.pathname + '?' + p + '#route';
 }
@@ -456,7 +564,7 @@ function shareText() {
   const L = [`[편한길 올팍] ${s ? s.title : v.name}`];
   if (s) L.push(`${fmtDate(s.at)} ${hm(s.at)} 시작 · ${v.name}`); else L.push(v.name);
   L.push(`${m} · ${w}`);
-  if (s && st.way === 'subway') { const x = exitsFor(v)[0]; L.push(`${hm(T.arrive)}까지 ${x.s.name} ${x.s.line} ${x.e.no}번 출구(엘리베이터)에서 만나요`); }
+  if (s && st.way === 'subway') { const x = mainExit(v); L.push(`${hm(T.arrive)}까지 ${x.s.name} ${x.s.line} ${x.e.no}번 출구(엘리베이터)에서 만나요`); }
   else if (s) L.push(`${hm(T.arrive)}까지 ${v.gate || '동2문'} 쪽 주차장 도착`);
   if (s) L.push(`끝나면 ${hm(T.leave)} 이후 나서기 (혼잡 피하기)`);
   return L.join('\n');
@@ -494,12 +602,14 @@ function loadSavedEvents() { try { const s = JSON.parse(localStorage.getItem('py
 
 // ---------- 현장 제보 ----------
 const RK = {step:'턱·계단이 있어요', slope:'경사가 가팔라요', blocked:'길이 막혔어요(공사·행사)', elevator:'엘리베이터가 멈췄어요', toilet:'장애인 화장실을 못 써요', good:'휠체어로 다니기 좋아요'};
+const score = r => (r.ok || 0) - (r.flag || 0);
+const doubted = r => (r.flag || 0) > (r.ok || 0);
 const ago = t => { const m = (Date.now() - t) / 60000; return m < 60 ? `${Math.max(1, Math.round(m))}분 전` : m < 1440 ? `${Math.round(m / 60)}시간 전` : `${Math.round(m / 1440)}일 전`; };
 const llFromSvg = (x, y) => [B.n - y / ky, x / kx + B.w];
 function routeReports() {
   if (!live.reports || !venue() || st.way !== 'subway') return [];
-  const pts = exitsFor(venue())[0].p.pts;
-  return live.reports.filter(r => r.kind !== 'good' && pts.some(p => dist(p, r.ll) < 40));
+  const pts = mainExit(venue()).p.pts;
+  return live.reports.filter(r => r.kind !== 'good' && !doubted(r) && pts.some(p => dist(p, r.ll) < 40));
 }
 async function loadReports() {
   if (!C.LIVE_API || !navigator.onLine) return;
@@ -509,9 +619,9 @@ async function loadReports() {
 }
 function renderReports() {
   const box = $('#reports'); if (!live.reports) { box.innerHTML = ''; return; }
-  const v = venue(), L = [...live.reports].sort((a, b) => v ? dist(a.ll, vll(v)) - dist(b.ll, vll(v)) : b.at - a.at).slice(0, 12);
-  box.innerHTML = `<h3>최근 30일 현장 제보 <small>${live.reports.length}건</small></h3>` + (L.length ? `<ul class="rlist">${L.map(r => `<li><span class="rk ${r.kind === 'good' ? 'g' : ''}">${esc(RK[r.kind])}</span> <span class="meta">${ago(r.at)}${v ? ` · ${esc(v.name)}에서 약 ${r10(dist(r.ll, vll(v)))}m` : ''}</span>${r.text ? `<p>${esc(r.text)}</p>` : ''}<div class="rb"><button data-vote="ok" data-id="${r.id}">저도 봤어요 ${r.ok || ''}</button><button data-vote="flag" data-id="${r.id}">지금은 아니에요</button></div></li>`).join('')}</ul>` : '<p class="meta">아직 제보가 없어요. 다니다 불편한 곳이 있으면 알려 주세요.</p>')
-    + `<p class="meta">제보는 이용자가 남긴 정보라 사실과 다를 수 있어요. 30일 뒤 사라지고, '지금은 아니에요'가 많으면 숨겨져요.</p>`;
+  const v = venue(), L = [...live.reports].sort((a, b) => (doubted(a) - doubted(b)) || (score(b) - score(a)) || (v ? dist(a.ll, vll(v)) - dist(b.ll, vll(v)) : b.at - a.at)).slice(0, 12);
+  box.innerHTML = `<h3>최근 30일 현장 제보 <small>${live.reports.length}건</small></h3>` + (L.length ? `<ul class="rlist">${L.map(r => `<li class="${doubted(r) ? 'doubt' : ''}"><span class="rk ${r.kind === 'good' ? 'g' : ''}">${esc(RK[r.kind])}</span>${doubted(r) ? ' <span class="dtag">확인이 엇갈려요</span>' : ''} <span class="meta">${ago(r.at)}${v ? ` · ${esc(v.name)}에서 약 ${r10(dist(r.ll, vll(v)))}m` : ''}</span>${r.text ? `<p>${esc(r.text)}</p>` : ''}<div class="rb"><button data-vote="ok" data-id="${r.id}" aria-label="저도 봤어요, 지금 ${r.ok || 0}명">👍 저도 봤어요 <b>${r.ok || 0}</b></button><button data-vote="flag" data-id="${r.id}" aria-label="지금은 아니에요, 지금 ${r.flag || 0}명">👎 지금은 아니에요 <b>${r.flag || 0}</b></button></div></li>`).join('')}</ul>` : '<p class="meta">아직 제보가 없어요. 다니다 불편한 곳이 있으면 알려 주세요.</p>')
+    + `<p class="meta">제보는 이용자가 남긴 정보라 사실과 다를 수 있어요. '저도 봤어요'가 많은 제보가 위에 나오고, '지금은 아니에요'가 더 많으면 아래로 내려가 흐리게 보여요. '지금은 아니에요'가 3명 이상이면서 더 많으면 숨겨지고, 모든 제보는 30일 뒤 사라져요.</p>`;
 }
 let pick = false;
 function setPick(on) {
@@ -557,6 +667,7 @@ document.addEventListener('click', e => {
   else if (b.dataset.rate !== undefined) { sp.rate = sp.rate < 1 ? 1 : 0.8; try { localStorage.setItem('pyeonhanRate', sp.rate); } catch(e) {} refreshBars(); if (sp.on) sayPane(sp.pane); }
   else if (b.dataset.say !== undefined) { const stEl = b.closest('.step'), pane = b.closest('.pane').id.slice(5), idx = [...document.querySelectorAll(`#pane-${pane} .step`)].indexOf(stEl); sayList(pane, [{step:idx, text:speakable(stEl)}], 0); }
   else if (b.id === 'mapsay') { if (sp.on && sp.pane === 'map') { stopSpeak(); return; } const items = [...$('#mapdesc').querySelectorAll('li')].map(li => ({step:-1, text:speakable(li)})); const c = centerFor(venue()), tl = toiletsNear(venue()); items.unshift({step:-1, text:`지도 안내예요. 파란 선은 계단을 피한 길이에요.`}); items.push({step:-1, text:`공연장에서 가장 가까운 화장실은 ${tl[0].p}, 약 ${r10(tl[0].m)}미터 거리예요. 휠체어 대여는 ${c.name}에서 해요.`}); sayList('map', items, 0); }
+  else if (b.id === 'fromClear') { st.from = ''; save(); renderRoute(); drawMap(); renderAfter(); }
   else if (b.id === 'shareBtn') shareTrip();
   else if (b.id === 'reportBtn') setPick(true);
   else if (b.id === 'pickCancel') setPick(false);
@@ -577,8 +688,8 @@ $('#sources').innerHTML = `<ul>
 <li><b>한국체육산업개발</b>: 올림픽공원 실시간 주차현황 API, 공식 일정안내, 공연정보(문화공공데이터광장, 2,502건), 주차장 입출차 정보(2025년 약 240만 건·2024.7 215,528건), 연계 데이터(2025 시간별 공연·관객·날씨), 주차장 혼잡도 정보(2025.2~2026.8, 699건)</li>
 <li><b>서울교통공사</b>: 교통약자이용정보 API(엘리베이터 실시간 가동·안전발판), 엘리베이터 설치현황, 9호선 2·3단계 엘리베이터 설치현황, 역사 장애인화장실정보, 수유실현황, 전동휠체어 급속충전기 운영 정보</li>
 <li><b>국민체육진흥공단</b>: 올림픽공원 편의시설 정보(화장실·매점 위치, 2021)</li>
-<li><b>서울교통공사</b> 사이버스테이션: 역별 첫차·막차 시간표 · <b>서울시설공단</b>: 장애인콜택시 이용 안내</li>
-<li>올림픽공원 홈페이지: 공연장별 주차장·주차요금, 안내센터 휠체어 대여, 휠체어 진입로 · 지도와 보행로: OpenStreetMap</li></ul>
+<li><b>서울교통공사</b> 교통약자이용정보 API(서울 1~8호선 전체 역 엘리베이터 실시간 상태), 사이버스테이션 역별 첫차·막차 시간표 · <b>서울시설공단</b>: 장애인콜택시 이용 안내</li>
+<li>올림픽공원 홈페이지: 공연장별 주차장·주차요금, 안내센터 휠체어 대여, 휠체어 진입로 · 지도와 보행로, 수도권 전철 노선: OpenStreetMap (우이신설선·GTX-A 일부 노선 제외)</li></ul>
 <p><b>한계</b>: 공원 안 경사로 기울기·턱·장애인 화장실 위치는 공개 데이터가 없어요. 보행로는 OpenStreetMap에서 계단으로 표시된 길만 피한 것이라 현장과 다를 수 있어요. 공연 종료 시각은 공식 소요시간이 없으면 같은 출연자의 지난 공연이나 공연장의 보통 소요시간(공연정보 API)으로 추정해요. 공연 뒤 혼잡은 주차장 출차 기록이라 걸어서 나가는 사람의 흐름과는 조금 다를 수 있어요.</p>`;
 
 // ---------- 시작 ----------
@@ -586,6 +697,13 @@ $('#sources').innerHTML = `<ul>
 netState();
 renderShows(); render(); setTab(location.hash.slice(1) || 'route'); st.started = true;
 $('#reportForm').addEventListener('submit', sendReport);
+document.addEventListener('submit', e => {
+  if (e.target.id !== 'fromForm') return; e.preventDefault();
+  const v = $('#fromIn').value.trim().replace(/역$/, '').replace(/\s+/g, '');
+  if (!v) return;
+  if (!metroGraph().byName.has(v)) { $('#fromErr').textContent = `'${v}'역을 찾지 못했어요. 목록에서 골라 주세요. (우이신설선·GTX-A 역은 아직 없어요)`; return; }
+  st.from = v; save(); renderRoute(); drawMap(); renderAfter(); toast(`${v}역에서 출발하는 길로 바꿨어요.`);
+});
 $('#reportForm').addEventListener('change', () => { $('#rpErr').textContent = ''; });
 loadReports();
 (async () => { try { const j = await fetch(C.PARKING_API).then(r => r.json()); const p = +j[0].parking_sum; if (p >= 0) { live.parking = {p, at:hm(new Date()) + ' 실시간'}; if (st.way === 'car' && venue()) renderRoute(); } } catch(e) {} })();

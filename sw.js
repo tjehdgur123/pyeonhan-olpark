@@ -1,6 +1,6 @@
 // 편한길 올팍 서비스 워커: 앱 화면과 지도·안내 데이터를 저장해 두고, 통신이 약해도 열리게 해요.
 // 실시간 정보(주차·엘리베이터·공연 일정)는 저장하지 않고 늘 새로 받아요.
-const VERSION = '20261124k';
+const VERSION = '20261124l';
 const CACHE = 'olpark-' + VERSION;
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
   ...['data.js', 'config.js', 'events.js', 'i18n.js', 'i18n-dict.js', 'app.js'].map(f => f + '?v=' + VERSION)];

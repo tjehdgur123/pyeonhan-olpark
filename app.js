@@ -451,16 +451,19 @@ function diagram(nodes) {
   nodes.forEach((nd, i) => {
     if (i < n - 1) { const s = nd.seg; g += `<line x1="${x(i)}" y1="24" x2="${x(i+1)}" y2="24" stroke="${s.color}" stroke-width="${s.dash ? 3 : 7}" stroke-linecap="round" ${s.dash ? 'stroke-dasharray="2 6"' : ''}/>`; t += `<text x="${(x(i) + x(i+1)) / 2}" y="12" text-anchor="middle" class="dg-l">${esc(s.label)}</text>`; }
   });
+  const rowEnd = [-1e9, -1e9]; let anyStag = false;
   nodes.forEach((nd, i) => {
     const last = i === n - 1;
     g += nd.exit ? `<rect x="${x(i) - 10}" y="14" width="20" height="20" rx="5" fill="#ffc20e" stroke="#111" stroke-width="1"/><text x="${x(i)}" y="29" text-anchor="middle" class="dg-x">${esc(nd.exit)}</text>`
       : `<circle cx="${x(i)}" cy="24" r="${last ? 8 : 7}" fill="${last ? '#0b4fa3' : 'var(--surface)'}" stroke="${last ? '#0b4fa3' : (nodes[i-1] || nd).seg?.color || '#666'}" stroke-width="3"/>`;
     const ko = LANG() === 'ko', full = ko ? nd.name : I18N.nameOf(nd.name), lim = ko ? 8 : 13, nm = full.length > lim ? full.slice(0, lim - 1) + '…' : full;
-    const stag = !ko && n > 3 && i % 2 === 1;
+    // 글자 폭을 어림해 앞 이름과 겹치면 아랫줄로 내려요
+    const w = [...nm].reduce((s2, ch) => s2 + (/[\u3000-\u9fff\uac00-\ud7a3]/.test(ch) ? 12.5 : 7), 0), x0 = i === 0 ? x(i) - 10 : last ? x(i) + 10 - w : x(i) - w / 2;
+    const stag = rowEnd[0] > x0 - 4 && rowEnd[1] <= x0 - 4; const rw = stag ? 1 : 0; rowEnd[rw] = x0 + w; if (stag) anyStag = true;
     t += `<text x="${x(i)}" y="${stag ? 68 : 54}" text-anchor="${i === 0 ? 'start' : last ? 'end' : 'middle'}" ${i === 0 ? `dx="-10"` : last ? `dx="10"` : ''} class="dg-n">${esc(nm)}</text>`;
   });
   const label = nodes.map((nd, i) => nd.name + (i < n - 1 ? ` (${nd.seg.label})` : '')).join(' → ');
-  return `<svg class="diagram" viewBox="0 0 ${W} ${LANG() !== 'ko' && n > 3 ? 76 : 62}" role="img" aria-label="${esc(label)}">${g}${t}</svg>`;
+  return `<svg class="diagram" viewBox="0 0 ${W} ${anyStag ? 76 : 62}" role="img" aria-label="${esc(label)}">${g}${t}</svg>`;
 }
 function routeHead(v, T, R) {
   const best = mainExit(v), walkMin = mins(best.p.m);

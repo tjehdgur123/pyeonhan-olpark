@@ -708,7 +708,7 @@ function loadBus(v) {
   if (!BUS.stops[k]) {
     BUS.stops[k] = 'loading';
     fetch(`${C.LIVE_API}/bus?op=pos&x=${v.lng}&y=${v.lat}&r=500`).then(r => r.json()).then(j => {
-      const L = (j.items || []).map(x => ({id:String(x.stationId), ars:String(x.arsId || ''), nm:x.stationNm, m:+x.dist || 0})).sort((a, b) => a.m - b.m).slice(0, 3);
+      const L = (j.items || []).map(x => ({id:String(x.stationId), ars:String(x.arsId || ''), nm:x.stationNm, m:+x.dist || 0})).sort((a, b) => a.m - b.m).slice(0, 4);
       BUS.stops[k] = j.ok && L.length ? L : 'fail'; renderAfter();
     }).catch(() => { BUS.stops[k] = 'fail'; renderAfter(); });
     return;
@@ -727,12 +727,15 @@ function busRow(v) {
   const S = BUS.stops[v.id];
   if (S === 'fail') return '';
   if (!Array.isArray(S)) return row(I.bus || I.car, '저상버스 실시간', '불러오는 중…', '', '');
-  const all = S.flatMap(s => { const L = BUS.low[s.id]; return L && L.items ? L.items.map(x => ({...x, stop:s})) : []; });
-  const first = all.find(x => !/운행종료|출발대기/.test(x.arrmsg1 || ''));
-  const sub = first ? `${esc(first.rtNm)} · ${esc(first.arrmsg1)}` : S.some(s => BUS.low[s.id] === 'loading' || !BUS.low[s.id]) ? '불러오는 중…' : '지금 오는 저상버스가 없어요';
-  const body = S.map(s => {
-    const L = BUS.low[s.id], items = L && L.items ? L.items : [];
-    return `<div class="busstop"><p><b data-noi18n>${esc(placeName(s.nm))}</b> <span class="meta">${s.ars ? `정류장 번호 ${esc(s.ars)} · ` : ''}공연장에서 약 ${r10(s.m)}m</span></p>${items.length ? `<ul class="buslist">${items.slice(0, 6).map(x => `<li><span class="bno">${esc(x.rtNm)}</span><span>${esc(x.arrmsg1 || '')}${x.adirection ? ` <span class="meta" data-noi18n>→ ${esc(placeName(x.adirection))}</span>` : ''}</span></li>`).join('')}</ul>` : `<p class="meta">${L === 'loading' || !L ? '불러오는 중…' : '지금 오는 저상버스가 없어요'}</p>`}</div>`;
+  const secs = m => { m = String(m || ''); if (/곧 도착/.test(m)) return 30; const a = m.match(/(\d+)분/), b = m.match(/(\d+)초/); return a || b ? (a ? +a[1] * 60 : 0) + (b ? +b[1] : 0) : 1e9; };
+  const ord = L => [...L].filter(x => !/운행종료/.test(x.arrmsg1 || '')).sort((a, b) => secs(a.arrmsg1) - secs(b.arrmsg1));
+  const all = S.flatMap(s => { const L = BUS.low[s.id]; return L && L.items ? ord(L.items).map(x => ({...x, stop:s})) : []; }).sort((a, b) => secs(a.arrmsg1) - secs(b.arrmsg1));
+  const first = all.find(x => secs(x.arrmsg1) < 1e9);
+  const sub = first ? `${esc(placeName(first.rtNm))} · ${esc(first.arrmsg1)} · ${esc(placeName(first.stop.nm))}` : S.some(s => BUS.low[s.id] === 'loading' || !BUS.low[s.id]) ? '불러오는 중…' : '지금 오는 저상버스가 없어요';
+  const shown = S.filter(s => { const L = BUS.low[s.id]; return !L || L === 'loading' || (L.items && ord(L.items).length); }).slice(0, 3);
+  const body = (shown.length ? shown : S.slice(0, 1)).map(s => {
+    const L = BUS.low[s.id], items = L && L.items ? ord(L.items) : [];
+    return `<div class="busstop"><p><b data-noi18n>${esc(placeName(s.nm))}</b> <span class="meta">${s.ars ? `정류장 번호 ${esc(s.ars)} · ` : ''}공연장에서 약 ${r10(s.m)}m</span></p>${items.length ? `<ul class="buslist">${items.slice(0, 6).map(x => `<li><span class="bno" data-noi18n>${esc(placeName(x.rtNm))}</span><span>${esc(x.arrmsg1 || '')}${x.arrmsg2 && !/운행종료/.test(x.arrmsg2) ? ` <span class="meta">· 다음 ${esc(x.arrmsg2)}</span>` : ''}</span></li>`).join('')}</ul>` : `<p class="meta">${L === 'loading' || !L ? '불러오는 중…' : '지금 오는 저상버스가 없어요'}</p>`}</div>`;
   }).join('') + `<p class="meta">저상버스만 보여 줘요. 휠체어 경사판이 필요하면 버스가 설 때 기사님께 손을 들어 알려 주세요. 미리 예약하려면 '서울동행맵' 앱을 쓰세요. 서울시 버스도착정보 기준이에요.</p>`;
   return row(I.bus || I.car, '저상버스 실시간', sub, first ? chip('ok', '운행 중') : '', body);
 }

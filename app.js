@@ -427,6 +427,8 @@ function fromSteps(R) {
 const LINE_COLOR = {'1':'#0052A4','2':'#00A84D','3':'#EF7C1C','4':'#00A5DE','5':'#996CAC','6':'#CD7C2F','7':'#747F00','8':'#E6186C','9':'#BDB092','수인·분당':'#F5A200','경의·중앙':'#77C4A3','신분당':'#D4003B','공항철도':'#0090D2','경강':'#003DA5','경춘':'#0C8E72','서해':'#8FC31F','I2':'#F5A251','인천1':'#7CA8D5','U':'#FDA600','용인':'#56AD2D','김포 골드라인':'#AD8605','Silim':'#6789CA'};
 const chip = (k, t) => `<span class="chip ${k}">${t}</span>`;
 const linePill = ref => `<span class="lp" style="background:${pillBg(LINE_COLOR[ref] || '#666')}">${esc(/^\d$/.test(ref) ? ref : lineName(ref).replace(/선$/, '').slice(0, 4))}</span>`;
+// 줄 아이콘용: 글자가 3자 이상이면 두 줄로 쌓아 동그라미 안에 다 보이게 (예: 수인/분당)
+const lineIc = ref => { const t = /^\d$/.test(ref) ? ref : lineName(ref).replace(/선$/, '').replace(/호$/, '').slice(0, 4); if (t.length <= 2) return linePill(ref); return `<span class="lp lp2" data-noi18n style="background:${pillBg(LINE_COLOR[ref] || '#666')}">${esc(t.slice(0, 2))}<br>${esc(t.slice(2))}</span>`; };
 function elevChip(list, loading) {
   if (loading) return chip('unk', '확인 중');
   if (!list || !list.length) return chip('unk', '정보 없음');
@@ -538,7 +540,7 @@ function renderRoute() {
       r.legs.forEach((l, i) => {
         const a = l.st[0], b = l.st[l.st.length - 1], n = l.st.length - 1;
         if (i > 0) h += row(I.xfer, `${esc(a)} 환승 → ${esc(lineName(l.ref))}`, '엘리베이터 동선 약 10분', elevChip(stationElev(a, l.ref), live.elevAll === undefined), elevLine(a, l.ref));
-        h += row(linePill(l.ref), `${esc(lineName(l.ref))} ${esc(legDir(l))}`, `${esc(a)} → ${esc(b)} · ${n}개 역 · ${Math.round(n * RIDE)}분`, '', null, 'lpwrap');
+        h += row(lineIc(l.ref), `${esc(lineName(l.ref))} ${esc(legDir(l))}`, `${esc(a)} → ${esc(b)} · ${n}개 역 · ${Math.round(n * RIDE)}분`, '', null, 'lpwrap');
       });
     }
     const ae = arrElev(S);

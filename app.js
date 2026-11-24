@@ -8,6 +8,7 @@ const I = {
   walk: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4" r="2"/><path d="M7 21l3-4M16 21l-2-4-3-3 1-6M6 12l2-3 4-1 3 3 3 1"/></svg>',
   map: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l6-3 6 3 6-3v13l-6 3-6-3-6 3z"/><path d="M9 4v13M15 7v13"/></svg>',
   flag: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>',
+  bus: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="14" rx="3"/><path d="M4 11h16M8 21v-4M16 21v-4"/><circle cx="8" cy="14" r=".8"/><circle cx="16" cy="14" r=".8"/></svg>',
   chev: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
   park: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M10 16V8h3a2 2 0 0 1 0 4h-3"/></svg>',
   left: '<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20v-9a3 3 0 0 0-3-3H6M10 4 6 8l4 4"/></svg>',
@@ -488,6 +489,40 @@ function fromBar(R) {
   if (!st.from) return `<div class="fromcard">${form}${links}</div>`;
   return `<details class="fromcard fold"><summary><span>${I.train} 출발역 <b>${esc(st.from)}</b>${R ? '' : ' · 경로 없음'}</span><span class="meta">바꾸기 · 길찾기 앱</span></summary>${form}${links}</details>`;
 }
+// ---------- 주차장 만차 예측: 실시간 주차 대수(10분마다 기록) + 2025 만차 기록 ----------
+function parkTrend(P) {
+  if (!P || !P.now) return null;
+  const [t, v] = P.now, cap = P.cap || 2200, H = (P.hist || []).filter(x => t - x[0] < 3 * 3600e3 && t - x[0] > 0);
+  const ago = m => { let b = null; for (const x of P.hist || []) if (Math.abs(t - m * 60000 - x[0]) < 12 * 60000 && (!b || Math.abs(t - m * 60000 - x[0]) < Math.abs(t - m * 60000 - b[0]))) b = x; return b; };
+  const p30 = ago(30) || ago(20), slope = p30 ? (v - p30[1]) / ((t - p30[0]) / 600000) : null;   // 10분당 대수
+  const full = cap * 0.95, eta = slope > 3 && v < full ? Math.round((full - v) / slope * 10) : null;
+  const wk = ago(7 * 24 * 60);
+  return {t, v, cap, pct:v / cap, slope, eta:eta != null && eta < 360 ? eta : null, wk:wk ? wk[1] : null, spark:H.concat([P.now])};
+}
+function parkAdvice() {
+  const F = D.pstats.full_by_hour, tot = Object.values(F).reduce((a, b) => a + b, 0), early = Object.entries(F).filter(([h]) => +h >= 6 && +h < 12).reduce((a, [, n]) => a + n, 0);
+  return {tot, earlyPct:Math.round(early / tot * 100), peakPct:Math.round(((F['13'] || 0) + (F['14'] || 0) + (F['15'] || 0)) / tot * 100)};
+}
+function sparkSvg(S, cap) {
+  if (!S || S.length < 3) return '';
+  const W = 300, H = 72, t0 = S[0][0], t1 = S[S.length - 1][0], lo = Math.min(...S.map(x => x[1])) * 0.95, hi = Math.max(cap, ...S.map(x => x[1]));
+  const X = t => (t - t0) / Math.max(1, t1 - t0) * (W - 8) + 4, Y = v => H - 6 - (v - lo) / Math.max(1, hi - lo) * (H - 24);
+  const pts = S.map(x => `${X(x[0]).toFixed(1)},${Y(x[1]).toFixed(1)}`).join(' ');
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" role="img" aria-label="최근 3시간 주차 대수 변화"><text x="4" y="11" class="dg-l">최근 3시간</text><line x1="0" x2="${W}" y1="${Y(cap * 0.95)}" y2="${Y(cap * 0.95)}" stroke="#d9480f" stroke-dasharray="4 4"/><text x="${W - 4}" y="${Y(cap * 0.95) - 3}" text-anchor="end" class="dg-l">거의 참</text><polyline points="${pts}" fill="none" stroke="#0b4fa3" stroke-width="2.5"/></svg>`;
+}
+function parkRow(lp) {
+  const P = parkTrend(live.park), A = parkAdvice();
+  const v = P ? P.v : lp ? lp.p : null, cap = P ? P.cap : 2200, pct = v != null ? v / cap : 0;
+  const chipH = v == null ? '' : chip(pct > .9 ? 'bad' : pct > .7 ? 'warnc' : 'ok', pct > .9 ? '거의 참' : pct > .7 ? '혼잡' : '여유');
+  const sub = v == null ? '불러오는 중…' : P && P.eta != null ? `약 ${P.eta}분 뒤 거의 참 예상` : P && P.slope != null ? (P.slope > 3 ? `10분에 ${Math.round(P.slope)}대씩 늘어요` : P.slope < -3 ? '줄어드는 중' : '변화 적음') : `${v.toLocaleString()}대 / ${cap.toLocaleString()}대`;
+  let body = v == null ? '' : `<div class="meter"><i style="width:${Math.min(100, pct * 100)}%"></i></div><p><b>${v.toLocaleString()}대</b> / ${cap.toLocaleString()}대 <span class="meta">${hm(new Date(P ? P.t : Date.now()))} 기준</span></p>`;
+  if (P && P.spark.length >= 3) body += sparkSvg(P.spark, cap);
+  if (P && P.eta != null) body += `<div class="note warn">${I.warn}<span>지금 속도(10분에 ${Math.round(P.slope)}대)라면 <b>${hm(addMin(new Date(P.t), P.eta))}</b>쯤 거의 가득 차요.</span></div>`;
+  if (P && P.wk != null) { const d = v - P.wk; body += `<p>지난주 같은 요일 이 시각엔 ${P.wk.toLocaleString()}대였어요. ${Math.abs(d) < cap * 0.03 ? '비슷해요.' : d > 0 ? `${d.toLocaleString()}대 더 많아요.` : `${(-d).toLocaleString()}대 적어요.`}</p>`; }
+  body += `<p>공연 날 만차 기록 ${A.tot}건 중 ${A.peakPct}%가 오후 1~3시에, ${A.earlyPct}%는 정오 전에 생겼어요. 확실하게 세우려면 <b>정오 전</b>, 늦어도 <b>오후 1시 전</b>에 도착하세요.</p>`;
+  body += `<p class="meta">실시간 주차현황(10분마다 기록)과 주차장 혼잡도 기록(${A.tot}건)을 함께 썼어요. 장기 주차 차량은 출차 기록이 없어 실제 대수와 조금 다를 수 있고, 주차장별 실시간 만차 여부는 공개되지 않아요.</p>`;
+  return row(I.park, v == null ? '주차장 상황' : `주차장 ${Math.round(pct * 100)}% 찼어요`, sub, chipH, body);
+}
 function renderRoute() {
   const v = venue(), m = mode(), s = curShow(), T = timesFor(), c = centerFor(v);
   const R = st.way === 'subway' ? pickedRoute() : null; if (st.from && st.way === 'subway') loadElevAll();
@@ -515,9 +550,7 @@ function renderRoute() {
       `${dirs.length ? `<ol class="turns">${dirs.map(t => `<li>${t}</li>`).join('')}</ol><p class="meta">OpenStreetMap 보행로 기준 추정이에요. 현장 안내판을 함께 확인하세요.</p>` : `<p>약 ${Math.round(best.p.m)}m 추정 (직선거리 기반)</p>`}${best.p.steps ? `<div class="note warn">${I.warn}<span>계단 없는 길을 찾지 못해 일부 구간에 계단이 있을 수 있어요.</span></div>` : ''}`, '', dirs.length ? `<button class="go xbtn" data-follow>${I.map}<span>따라가기</span></button>` : '');
   } else {
     const ps = D.pstats.full_days_by_lot, lot = v.parking || '가까운 공연장 주차장', lots = (v.parking || '').match(/P\d+[AB]?/g) || [], lp = live.parking;
-    const pct = lp ? lp.p / 2200 : 0;
-    h += row(I.park, '지금 주차', lp ? `${lp.p.toLocaleString()}대 / 2,200대 · ${esc(lp.at)}` : '불러오는 중…', lp ? chip(pct > .9 ? 'bad' : pct > .7 ? 'warnc' : 'ok', pct > .9 ? '거의 참' : pct > .7 ? '혼잡' : '여유') : '',
-      `${lp ? `<div class="meter"><i style="width:${Math.min(100, pct * 100)}%"></i></div>` : ''}<p class="meta">주말 만차 기록의 62%가 오후 1~3시에 몰려 있어요. 저녁 공연도 낮부터 차요.</p>`);
+    h += parkRow(lp);
     h += row(I.car, `${esc(v.gate || '동2문')} → ${esc(lot)}`, `${v.pcap ? `${v.pcap}대` : ''}${lots.map(l => ps[l] ? ` · ${l} 만차 ${ps[l]}일` : '').join('')}`, '', `<p class="meta">장애인·국가유공자 차량은 주차요금 50% 할인이에요(10분당 600원, 하루 최대 2만 원). 대형 공연 날엔 사전정산이 없고, 공연 티켓이 있어도 따로 할인되지 않아요. 입차는 오전 6시~밤 10시.</p>`);
     h += row(I.walk, `${esc(v.name)}까지 ${esc(v.pwalk || '몇')}분`, '휠체어 진입로 안내', '', `<p class="meta">만남의광장 휠체어 진입로: 동2문 입차 → 그래피티의 벽 주차장 → 올림픽공원역 쪽 경사로</p>`);
   }
@@ -665,6 +698,45 @@ function homeTrain(T, x) {
   return {to:last.to, at:last.at, by, miss:T.leave > by, ref:L.ref, via:legs.length > 1 ? target : null};
 }
 
+// ---------- 저상버스 실시간 (서울시 버스도착정보·정류소정보, Worker /bus) ----------
+const BUS = {stops:{}, low:{}};
+// 외국어 화면에서는 정류장·방면 이름을 이름표로, 없으면 로마자로
+const placeName = n => { if (LANG() === 'ko' || !window.I18N) return n; const t = I18N.tr(n); return t.replace(/[가-힣]+/g, w => I18N.roma(w)); };
+function loadBus(v) {
+  if (!C.LIVE_API || !v) return;
+  const k = v.id;
+  if (!BUS.stops[k]) {
+    BUS.stops[k] = 'loading';
+    fetch(`${C.LIVE_API}/bus?op=pos&x=${v.lng}&y=${v.lat}&r=500`).then(r => r.json()).then(j => {
+      const L = (j.items || []).map(x => ({id:String(x.stationId), ars:String(x.arsId || ''), nm:x.stationNm, m:+x.dist || 0})).sort((a, b) => a.m - b.m).slice(0, 3);
+      BUS.stops[k] = j.ok && L.length ? L : 'fail'; renderAfter();
+    }).catch(() => { BUS.stops[k] = 'fail'; renderAfter(); });
+    return;
+  }
+  if (!Array.isArray(BUS.stops[k])) return;
+  for (const s of BUS.stops[k]) {
+    const c = BUS.low[s.id]; if (c && (c === 'loading' || Date.now() - c.t < 60000)) continue;
+    BUS.low[s.id] = 'loading';
+    fetch(`${C.LIVE_API}/bus?op=low&st=${s.id}`).then(r => r.json()).then(j => { BUS.low[s.id] = {t:Date.now(), ok:j.ok, items:j.items || []}; renderAfter(); })
+      .catch(() => { BUS.low[s.id] = {t:Date.now(), ok:false, items:[]}; renderAfter(); });
+  }
+}
+function busRow(v) {
+  if (!C.LIVE_API || !v) return '';
+  loadBus(v);
+  const S = BUS.stops[v.id];
+  if (S === 'fail') return '';
+  if (!Array.isArray(S)) return row(I.bus || I.car, '저상버스 실시간', '불러오는 중…', '', '');
+  const all = S.flatMap(s => { const L = BUS.low[s.id]; return L && L.items ? L.items.map(x => ({...x, stop:s})) : []; });
+  const first = all.find(x => !/운행종료|출발대기/.test(x.arrmsg1 || ''));
+  const sub = first ? `${esc(first.rtNm)} · ${esc(first.arrmsg1)}` : S.some(s => BUS.low[s.id] === 'loading' || !BUS.low[s.id]) ? '불러오는 중…' : '지금 오는 저상버스가 없어요';
+  const body = S.map(s => {
+    const L = BUS.low[s.id], items = L && L.items ? L.items : [];
+    return `<div class="busstop"><p><b data-noi18n>${esc(placeName(s.nm))}</b> <span class="meta">${s.ars ? `정류장 번호 ${esc(s.ars)} · ` : ''}공연장에서 약 ${r10(s.m)}m</span></p>${items.length ? `<ul class="buslist">${items.slice(0, 6).map(x => `<li><span class="bno">${esc(x.rtNm)}</span><span>${esc(x.arrmsg1 || '')}${x.adirection ? ` <span class="meta" data-noi18n>→ ${esc(placeName(x.adirection))}</span>` : ''}</span></li>`).join('')}</ul>` : `<p class="meta">${L === 'loading' || !L ? '불러오는 중…' : '지금 오는 저상버스가 없어요'}</p>`}</div>`;
+  }).join('') + `<p class="meta">저상버스만 보여 줘요. 휠체어 경사판이 필요하면 버스가 설 때 기사님께 손을 들어 알려 주세요. 미리 예약하려면 '서울동행맵' 앱을 쓰세요. 서울시 버스도착정보 기준이에요.</p>`;
+  return row(I.bus || I.car, '저상버스 실시간', sub, first ? chip('ok', '운행 중') : '', body);
+}
+
 function miniChart(T) {
   const A = D.exit25, mx = Math.max(...A.event), n = A.event.length, W = 330, H = 96, bw = W / n;
   const li = A.min.indexOf(70);
@@ -691,6 +763,7 @@ function renderAfter() {
     const x = mainExit(v), R = pickedRoute(), L = R ? [...R[0].legs].reverse() : null;
     h += row(`<span class="exit">${x.e.no}</span>`, `${x.e.no}번 출구 엘리베이터로`, L ? `집으로: ${L.map(l => lineName(l.ref)).join(' → ')} → ${st.from}역` : `${x.s.name} ${x.s.line}`, '', L ? `<p>${L.map((l, i) => `${i ? `${esc(l.st[l.st.length - 1])}에서 ` : ''}${esc(lineName(l.ref))}`).join(' → ')} → ${esc(st.from)}역</p>` : '', 'y');
   } else h += row(I.car, '주차장 나가기', `출차 ${A.gates['동2문']}% 동2문 · ${A.gates['북2문']}% 북2문`, '', `<p>공연이 끝나면 출차의 약 ${A.gates['동2문']}%가 동2문, ${A.gates['북2문']}%가 북2문, ${A.gates['남2문']}%가 남2문으로 몰려요.${v && v.gate ? ` 이 공연장 주차장은 <b>${esc(v.gate)}</b> 쪽이에요.` : ''} 종료 70분 뒤부터 나서면 기다림이 짧아요.</p>`);
+  h += busRow(v);
   h += row(I.phone, '장애인콜택시 1588-4388', '끝나면 바로 접수 · 동승 3명', '', `<p><a class="tel" href="tel:15884388">1588-4388</a> (전화·문자, 앱 '장애인콜택시')</p><p class="meta">필요한 때 바로 접수하는 방식이 원칙이라, 공연이 끝나면 바로 접수하세요. 끝난 직후엔 대기가 길 수 있어요. 휠체어 이용 시 보호자 등 3명까지 함께 탈 수 있어요. 시각장애인은 복지콜 <a class="tel" href="tel:16004477">1600-4477</a>. 타는 곳은 공연장 이름과 가까운 출입문(${esc((v && v.gate) || '동2문')})을 함께 말하세요.</p>`);
   h += '</ol>';
   h += `<details class="alt"><summary>10분 단위 혼잡 자세히 보기</summary><div class="bars" role="img" aria-label="공연 종료 전후 10분 단위 출차 대수">${A.min.map((o, i) => {
@@ -1062,6 +1135,11 @@ $('#reportForm').addEventListener('change', () => { $('#rpErr').textContent = ''
 loadReports();
 // 언어: 머리 오른쪽 '언어' 고르기. 한국어가 아니면 화면 글자를 사전으로 바꿔요
 if (window.I18N) { const L = $('#langSel'); L.value = I18N.lang; L.addEventListener('change', () => I18N.setLang(L.value)); I18N.start(); }
+async function loadPark() {
+  if (!C.LIVE_API) return;
+  try { const j = await fetch(C.LIVE_API + '/park').then(r => r.ok ? r.json() : Promise.reject()); if (j && j.now) { live.park = j; live.parking = {p:j.now[1], at:hm(new Date(j.now[0])) + ' 실시간'}; if (st.way === 'car' && venue()) renderRoute(); } } catch(e) {}
+}
+loadPark(); setInterval(() => { if (document.visibilityState === 'visible' && st.way === 'car') loadPark(); }, 5 * 60000);
 (async () => { try { const j = await fetch(C.PARKING_API).then(r => r.json()); const p = +j[0].parking_sum; if (p >= 0) { live.parking = {p, at:hm(new Date()) + ' 실시간'}; if (st.way === 'car' && venue()) renderRoute(); } } catch(e) {} })();
 (async () => { try { if (!C.LIVE_API) throw 0; const j = await fetch(C.LIVE_API + '/elevators').then(r => r.json()); live.elev = j.items && j.items.length ? j : 'fail'; } catch(e) { live.elev = 'fail'; } if (venue()) renderRoute(); })();
 if (window.loadLiveEvents) loadLiveEvents(D.venues).then(ev => { if (ev.length) { evSource = 'live'; saveEvents(ev); setShows(ev); renderShows(); render(); } }).catch(() => {});

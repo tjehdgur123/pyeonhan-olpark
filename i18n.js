@@ -137,7 +137,7 @@
     // 역 이름: 지하철 노선 자료의 모든 역 (손으로 정한 이름이 없으면 로마자)
     const st = new Set();
     for (const [, s] of (D.metro && D.metro.lines) || []) for (const x of s) st.add(x);
-    const COMMON = new Set(['계산', '중앙', '신설']);  // 보통 낱말과 같은 역 이름은 이름으로 보지 않아요
+    const COMMON = new Set(['계산', '중앙', '신설', '장기', '정왕']);  // 보통 낱말과 같은 역 이름은 이름으로 보지 않아요
     for (const x of st) { const b = x.replace(/\(.*\)/, ''); if (COMMON.has(b)) continue; if (!nameMap.has(x)) { const r = nameMap.get(b); nameMap.set(x, r ? [x, r[1], r[2], r[3]] : [x, roma(b), roma(b), roma(b)]); } }
     nameList = [...nameMap.keys()].sort((a, b) => b.length - a.length);
     const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

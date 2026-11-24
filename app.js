@@ -929,7 +929,14 @@ addEventListener('appinstalled', () => { installEvt = null; toast('설치했어�
 const netState = () => { $('#offline').hidden = navigator.onLine; };
 addEventListener('online', () => { netState(); toast('다시 연결됐어요. 새로고침하면 실시간 정보를 다시 불러와요.'); });
 addEventListener('offline', netState);
-if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  // 새 버전이 올라오면 한 번 자동으로 다시 열어 옛 화면이 남지 않게
+  const had = !!navigator.serviceWorker.controller; let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (had && !reloaded) { reloaded = true; location.reload(); } });
+  addEventListener('load', () => navigator.serviceWorker.register('sw.js').then(reg => {
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
+  }).catch(() => {}));
+}
 // 마지막으로 불러온 공식 일정을 기기에 저장해 두고, 연결이 없을 때 씀
 function saveEvents(ev) { try { localStorage.setItem('pyeonhanEvents', JSON.stringify({at:Date.now(), ev})); } catch(e) {} }
 function loadSavedEvents() { try { const s = JSON.parse(localStorage.getItem('pyeonhanEvents') || 'null'); if (s && Date.now() - s.at < 14 * 864e5 && s.ev.length) return s; } catch(e) {} return null; }

@@ -232,7 +232,9 @@
   }
   function setLang(l) {
     try { localStorage.setItem('pyeonhanLang', l); } catch (e) {}
-    const u = new URL(location.href); u.searchParams.delete('lang'); location.replace(u.toString());
+    // 주소가 그대로면(#만 같으면) replace가 새로 읽지 않으니 reload로 다시 그려요
+    const u = new URL(location.href); u.searchParams.delete('lang');
+    if (u.href === location.href) location.reload(); else location.replace(u.href);
   }
   // 출발역 입력: 로마자·번역 이름도 한국어 역 이름으로
   function toKo(v) {

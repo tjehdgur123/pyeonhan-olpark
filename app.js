@@ -34,7 +34,7 @@ const I = {
 
 // ---------- 글자 크기 (보통 16px · 크게 20px · 아주 크게 24px) ----------
 let fsLevel = 0;
-function setFs(n) { fsLevel = +n || 0; const r = document.documentElement; r.classList.remove('fs1', 'fs2'); if (fsLevel) r.classList.add('fs' + fsLevel); const b = document.getElementById('bigBtn'); if (b) { const n = ['보통', '크게', '아주 크게'][fsLevel]; b.textContent = '글자 크기 ' + n; } }
+function setFs(n) { fsLevel = +n || 0; const r = document.documentElement; r.classList.remove('fs1', 'fs2'); if (fsLevel) r.classList.add('fs' + fsLevel); const b = document.getElementById('bigBtn'); if (b) { const n = ['보통', '크게', '아주 크게'][fsLevel]; b.innerHTML = `<span>글자 크기</span> <span>${n}</span>`; } }
 // ---------- 상태 ----------
 const MODES = [{id:'wheel', label:'휠체어', speed:55, icon:I.wheel}, {id:'stroller', label:'유아차', speed:60, icon:I.stroller}, {id:'slow', label:'걷기 힘듦', speed:40, icon:I.slow}];
 const WAYS = [{id:'subway', label:'지하철', icon:I.train}, {id:'car', label:'자동차', icon:I.car}];
@@ -426,9 +426,11 @@ function fromSteps(R) {
 // ---------- 가는 길 (노선도 요약 + 한 줄 카드) ----------
 const LINE_COLOR = {'1':'#0052A4','2':'#00A84D','3':'#EF7C1C','4':'#00A5DE','5':'#996CAC','6':'#CD7C2F','7':'#747F00','8':'#E6186C','9':'#BDB092','수인·분당':'#F5A200','경의·중앙':'#77C4A3','신분당':'#D4003B','공항철도':'#0090D2','경강':'#003DA5','경춘':'#0C8E72','서해':'#8FC31F','I2':'#F5A251','인천1':'#7CA8D5','U':'#FDA600','용인':'#56AD2D','김포 골드라인':'#AD8605','Silim':'#6789CA'};
 const chip = (k, t) => `<span class="chip ${k}">${t}</span>`;
-const linePill = ref => `<span class="lp" style="background:${pillBg(LINE_COLOR[ref] || '#666')}">${esc(/^\d$/.test(ref) ? ref : lineName(ref).replace(/선$/, '').slice(0, 4))}</span>`;
+const PILL_ABBR = {'수인·분당':'SB', '경의·중앙':'GJ', '신분당':'SBD', '공항철도':'A', '경강':'GG', '경춘':'GC', '서해':'SH', 'I2':'I2', '인천1':'I1', 'U':'U', '용인':'Y', '김포 골드라인':'G', 'Silim':'S'};
+const pillTxt = ref => /^\d$/.test(ref) ? ref : LANG() !== 'ko' && PILL_ABBR[ref] ? PILL_ABBR[ref] : lineName(ref).replace(/선$/, '').slice(0, 4);
+const linePill = ref => `<span class="lp" data-noi18n style="background:${pillBg(LINE_COLOR[ref] || '#666')}">${esc(pillTxt(ref))}</span>`;
 // 줄 아이콘용: 글자가 3자 이상이면 두 줄로 쌓아 동그라미 안에 다 보이게 (예: 수인/분당)
-const lineIc = ref => { const t = /^\d$/.test(ref) ? ref : lineName(ref).replace(/선$/, '').replace(/호$/, '').slice(0, 4); if (t.length <= 2) return linePill(ref); return `<span class="lp lp2" data-noi18n style="background:${pillBg(LINE_COLOR[ref] || '#666')}">${esc(t.slice(0, 2))}<br>${esc(t.slice(2))}</span>`; };
+const lineIc = ref => { const t = /^\d$/.test(ref) || (LANG() !== 'ko' && PILL_ABBR[ref]) ? pillTxt(ref) : lineName(ref).replace(/선$/, '').replace(/호$/, '').slice(0, 4); if (t.length <= 2) return linePill(ref); return `<span class="lp lp2" data-noi18n style="background:${pillBg(LINE_COLOR[ref] || '#666')}">${esc(t.slice(0, 2))}<br>${esc(t.slice(2))}</span>`; };
 function elevChip(list, loading) {
   if (loading) return chip('unk', '확인 중');
   if (!list || !list.length) return chip('unk', '정보 없음');
@@ -714,7 +716,7 @@ function homeTrain(T, x) {
 // ---------- 저상버스 실시간 (서울시 버스도착정보·정류소정보, Worker /bus) ----------
 const BUS = {stops:{}, low:{}};
 // 외국어 화면에서는 정류장·방면 이름을 이름표로, 없으면 로마자로
-const placeName = n => { if (LANG() === 'ko' || !window.I18N) return n; const t = I18N.tr(n); return t.replace(/[가-힣]+/g, w => I18N.roma(w)); };
+const placeName = n => (LANG() === 'ko' || !window.I18N) ? n : I18N.loose(n);
 function loadBus(v) {
   if (!C.LIVE_API || !v) return;
   const k = v.id;

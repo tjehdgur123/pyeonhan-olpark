@@ -76,6 +76,7 @@
     ['수영경기장', 'swimming pool', '水泳競技場', '游泳馆'],
     ['실내테니스장', 'Indoor Tennis Court', '室内テニス場', '室内网球场'],
     ['실내 테니스장', 'Indoor Tennis Court', '室内テニス場', '室内网球场'],
+    ['테니스장', 'Tennis Court', 'テニス場', '网球场'],
     ['평화의광장 안내센터', 'Peace Plaza Info Center', '平和の広場案内センター', '和平广场服务中心'],
     ['만남의광장 안내센터', 'Meeting Plaza Info Center', '出会いの広場案内センター', '相会广场服务中心'],
     ['평화의 광장', 'Peace Plaza', '平和の広場', '和平广场'],
@@ -243,5 +244,15 @@
     for (const [k, r] of nameMap) if (r.slice(1).some(x => String(x).toLowerCase().replace(/[\s-]/g, '') === q)) return k;
     return v;
   }
-  window.I18N = {get lang() { return lang; }, LANGS, tr, apply, setLang, start, toKo, roma, speechLang:() => SPEECH_LANG[lang], nameOf:k => { buildNames(); const r = nameMap.get(k); return lang === 'ko' || !r ? k : r[LI[lang]]; }};
+  // 정류장 이름처럼 낱말이 붙어 있는 이름: 아는 이름을 경계 없이 찾아 바꾸고, 나머지 한글은 로마자로
+  function loose(text) {
+    if (lang === 'ko') return text; buildNames();
+    let t = String(text).replace(/([동서남북])(\d)문/g, (m, d, n) => ' ' + nameTr(m, null, null, d, n) + ' ');
+    for (const k of nameList) if (/[가-힣]/.test(k) && t.includes(k)) t = t.split(k).join(' ' + (nameMap.get(k)[LI[lang]]) + ' ');
+    const STN = {en: ' Stn. ', ja: '駅 ', zh: '站 '}[lang], EX = n => ({en: ` Exit ${n} `, ja: ` ${n}番出口 `, zh: ` ${n}号出口 `})[lang];
+    t = t.replace(/(\d+)번\s*출구/g, (m, n) => EX(n)).replace(/\s역(?=[\s\d]|$)/g, STN);
+    t = t.replace(/[가-힣]+/g, w => ' ' + roma(w) + ' ');
+    return t.replace(/\s*([·()])\s*/g, '$1').replace(/\s+\./g, '.').replace(/\s+/g, ' ').trim();
+  }
+  window.I18N = {get lang() { return lang; }, loose, LANGS, tr, apply, setLang, start, toKo, roma, speechLang:() => SPEECH_LANG[lang], nameOf:k => { buildNames(); const r = nameMap.get(k); return lang === 'ko' || !r ? k : r[LI[lang]]; }};
 })();

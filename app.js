@@ -447,11 +447,15 @@ function row(icon, title, sub, side, body, icCls, extra) {
 function diagram(nodes) {
   // nodes: [{name, seg:{color, label, dash}}] — seg는 다음 노드까지의 구간
   // 구간 길이는 글자 폭에 맞춰 정하고(겹치지 않게), 도착지 이름은 마지막 점 오른쪽에 적어요
-  const ko = LANG() === 'ko', tw = s2 => [...s2].reduce((a, ch) => a + (/[　-鿿가-힣]/.test(ch) ? 12.5 : 7.2), 0);
+  const ko = LANG() === 'ko', tw = s2 => [...s2].reduce((a, ch) => a + (/[　-鿿가-힣]/.test(ch) ? 12.5 : /[A-Z0-9]/.test(ch) ? 7.6 : 6.4), 0);
   const nm = nodes.map(nd => ko ? nd.name : I18N.nameOf(nd.name));
   const sl = nodes.map(nd => !nd.seg ? '' : ko ? nd.seg.label : I18N.tr(nd.seg.label).replace(/ Line$/, '').replace(/^Line /, ''));
-  const n = nodes.length, endW = [...nm[n - 1]].reduce((a, ch) => a + (/[\u3000-\u9fff\uac00-\ud7a3]/.test(ch) ? 13.5 : /[A-Z]/.test(ch) ? 9 : 7.8), 0) + 22;
-  const L = nodes.slice(0, -1).map((nd, i) => Math.max(44, tw(sl[i]) * 0.9 + 12, (i === 0 ? tw(nm[0]) - 10 : tw(nm[i]) / 2) + (i + 1 < n - 1 ? tw(nm[i + 1]) / 2 : 0) + 12));
+  const n = nodes.length, ew = s2 => [...s2].reduce((a, ch) => a + (/[\u3000-\u9fff\uac00-\ud7a3]/.test(ch) ? 13.5 : /[A-Z]/.test(ch) ? 9 : 7.8), 0);
+  // 도착지 이름이 길면(영어 등) 두 줄로 나눠 노선도가 작아지지 않게
+  let endL = [nm[n - 1]];
+  if (nm[n - 1].length > 13 && / /.test(nm[n - 1])) { const w = nm[n - 1].split(' '); let best = null; for (let k = 1; k < w.length; k++) { const a = w.slice(0, k).join(' '), b = w.slice(k).join(' '), m = Math.max(ew(a), ew(b)); if (!best || m < best.m) best = {a, b, m}; } endL = [best.a, best.b]; }
+  const endW = Math.max(...endL.map(ew)) + 22;
+  const L = nodes.slice(0, -1).map((nd, i) => Math.max(ko ? 44 : 36, tw(sl[i]) * 0.9 + (ko ? 12 : 8), (i === 0 ? tw(nm[0]) - 10 : tw(nm[i]) / 2) + (i + 1 < n - 1 ? tw(nm[i + 1]) / 2 : 0) + (ko ? 12 : 11)));
   let sum = L.reduce((a, b) => a + b, 0), W = 18 + sum + endW + 4;
   if (W < 330) { const k = (330 - 18 - endW - 4) / sum; for (let i = 0; i < L.length; i++) L[i] *= k; sum *= k; W = 330; }
   const X = [18]; L.forEach(l => X.push(X[X.length - 1] + l)); const x = i => X[i];
@@ -463,7 +467,7 @@ function diagram(nodes) {
     const last = i === n - 1;
     g += nd.exit ? `<rect x="${x(i) - 10}" y="14" width="20" height="20" rx="5" fill="#ffc20e" stroke="#111" stroke-width="1"/><text x="${x(i)}" y="29" text-anchor="middle" class="dg-x">${esc(nd.exit)}</text>`
       : `<circle cx="${x(i)}" cy="24" r="${last ? 8 : 7}" fill="${last ? '#0b4fa3' : 'var(--surface)'}" stroke="${last ? '#0b4fa3' : (nodes[i-1] || nd).seg?.color || '#666'}" stroke-width="3"/>`;
-    t += last ? `<text x="${x(i) + 14}" y="29" text-anchor="start" class="dg-n dg-end" data-noi18n>${esc(nm[i])}</text>`
+    t += last ? (endL.length > 1 ? `<text x="${x(i) + 14}" y="22" text-anchor="start" class="dg-n dg-end" data-noi18n><tspan x="${x(i) + 14}">${esc(endL[0])}</tspan><tspan x="${x(i) + 14}" dy="14">${esc(endL[1])}</tspan></text>` : `<text x="${x(i) + 14}" y="29" text-anchor="start" class="dg-n dg-end" data-noi18n>${esc(nm[i])}</text>`)
       : `<text x="${x(i)}" y="54" text-anchor="${i === 0 ? 'start' : 'middle'}" ${i === 0 ? `dx="-10"` : ''} class="dg-n" data-noi18n>${esc(nm[i])}</text>`;
   });
   const label = nodes.map((nd, i) => nd.name + (i < n - 1 ? ` (${nd.seg.label})` : '')).join(' → ');
@@ -1134,7 +1138,8 @@ $('#sources').innerHTML = `<ul>
 // ---------- 시작 ----------
 { const s = loadSavedEvents(); if (s) { evSource = 'saved'; evSavedAt = new Date(s.at); setShows(s.ev); } }
 netState();
-renderShows(); render(); setTab(location.hash.slice(1) || 'route'); st.started = true;
+let keepTab = ''; try { keepTab = sessionStorage.getItem('pyeonhanTab') || ''; sessionStorage.removeItem('pyeonhanTab'); } catch(e) {}
+renderShows(); render(); setTab(keepTab || location.hash.slice(1) || 'route'); st.started = true;
 $('#reportForm').addEventListener('submit', sendReport);
 document.addEventListener('submit', e => {
   if (e.target.id !== 'fromForm') return; e.preventDefault();

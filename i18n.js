@@ -232,6 +232,7 @@
   }
   function setLang(l) {
     try { localStorage.setItem('pyeonhanLang', l); } catch (e) {}
+    try { sessionStorage.setItem('pyeonhanTab', (location.hash || '').slice(1)); } catch (e) {}  // 보던 탭 그대로
     // 주소가 그대로면(#만 같으면) replace가 새로 읽지 않으니 reload로 다시 그려요
     const u = new URL(location.href); u.searchParams.delete('lang');
     if (u.href === location.href) location.reload(); else location.replace(u.href);

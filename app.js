@@ -373,11 +373,11 @@ async function loadElevAll() {
 }
 function pickedRoute() {
   if (!st.from || st.way !== 'subway' || !venue()) return null;
-  const key = [st.from, st.venue, st.mode].join('|');
-  if (pickedRoute.k !== key) { pickedRoute.k = key; const R = metroRoutes(st.from); pickedRoute.v = R[0] ? R : null; }
+  const key = [st.from, st.venue, st.mode, st.altSid].join('|');
+  if (pickedRoute.k !== key) { pickedRoute.k = key; let R = metroRoutes(st.from); pickedRoute.o = R; const i = R.findIndex(r => r.sid === st.altSid); if (i > 0) R = [R[i], ...R.slice(0, i), ...R.slice(i + 1)]; pickedRoute.v = R[0] ? R : null; }
   return pickedRoute.v;
 }
-function mainExit(v) { const R = pickedRoute(); return R ? R[0].x : exitsFor(v)[0]; }
+function mainExit(v) { const R = pickedRoute(); if (R) return R[0].x; const E = exitsFor(v); return (st.altSid && E.find(x => x.s.id === st.altSid)) || E[0]; }
 // 길찾기 앱 연결: 출발지 = 저장한 출발역(없으면 현재 위치), 목적지 = 도착역 엘리베이터 출구
 const isMobile = window.__forceMobile || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 function openApps() {
@@ -532,12 +532,12 @@ function renderRoute() {
       <dt>가까운 화장실</dt><dd>${tl.map(t => `${esc(t.p)} ${esc(t.d)} (${Math.round(t.m)}m)`).join(' · ')}</dd></dl>${w}`, 'blue');
   h += '</ol>';
   if (st.way === 'subway') {
-    const R2 = R ? R.slice(1, 3) : [];
-    const seen = new Set([mainExit(v).s.id]);
-    const alts = exitsFor(v).filter(x => !seen.has(x.s.id) && seen.add(x.s.id)).slice(0, 3);
-    h += `<details class="alt"><summary>${R2.length ? `다른 경로 (${R2.length})` : `다른 역으로 가기 (${alts.length})`}</summary>${R2.length
-      ? R2.map(q => `<div class="altrow"><p style="margin:0"><b>${esc(q.x.s.name)}</b> ${esc(q.x.s.line)} 도착 · 지하철 약 ${Math.round(q.ride + q.xfer)}분 · 환승 ${q.legs.length - 1}번 · 걸어서 ${mins(q.x.p.m)}분</p><p class="meta">${q.legs.map(l => `${lineName(l.ref)} ${l.st[0]}→${l.st[l.st.length - 1]}`).map(esc).join(' · ')}</p></div>`).join('')
-      : alts.map(x => `<div class="altrow"><p style="margin:0">${pill(x.s)} <b>${esc(x.s.name)}</b> <span class="exit">${x.e.no}</span>번 출구 → 약 ${mins(x.p.m)}분</p>${x.s.warn ? `<p class="meta">${esc(x.s.warn)}</p>` : ''}${elevNote(x.s)}</div>`).join('')}</details>`;
+    // 경로 고르기: 누르면 그 경로로 가는 길·지도·막차가 모두 바뀌어요
+    const cur = mainExit(v), cards = R ? pickedRoute.o.slice(0, 4).map(q => ({id:q.sid, on:q === R[0], pills:q.legs.map(l => linePill(l.ref)).join('<span class="ar" aria-hidden="true">→</span>'),
+        t:`${esc(q.x.s.name)} ${esc(q.x.s.line)} 도착`, sub:`지하철 약 ${Math.round(q.ride + q.xfer)}분 · 환승 ${q.legs.length - 1}번 · 걸어서 ${mins(q.x.p.m)}분`, tot:Math.round(q.ride + q.xfer + mins(q.x.p.m))}))
+      : (() => { const seen = new Set(); return exitsFor(v).filter(x => !seen.has(x.s.id) && seen.add(x.s.id)).slice(0, 4).map(x => ({id:x.s.id, on:x.s.id === cur.s.id, pills:pill(x.s),
+        t:`${esc(x.s.name)} ${esc(x.s.line)} 도착`, sub:`<span class="exit">${x.e.no}</span>번 출구 → 약 ${mins(x.p.m)}분`, warn:x.s.warn})); })();
+    if (cards.length > 1) h += `<section class="altpick" aria-labelledby="altT"><h3 id="altT">경로 고르기 <small>${cards.length}개</small></h3><div class="altlist">${cards.map(c2 => `<button class="altcard" data-alt="${c2.id}" aria-pressed="${c2.on}"><span class="lps">${c2.pills}</span><span class="at"><b>${c2.t}</b><small>${c2.sub}</small>${c2.warn ? `<small class="w">${esc(c2.warn)}</small>` : ''}</span>${c2.tot ? `<span class="tot">총 ${c2.tot}분</span>` : ''}${c2.on ? `<span class="chip ok">지금 경로</span>` : ''}</button>`).join('')}</div></section>`;
   }
   $('#pane-route').innerHTML = h;
   markSpeaking();
@@ -1000,12 +1000,12 @@ document.addEventListener('click', e => {
   else if (b.id === 'locBtn') toggleLoc();
   else if (b.id === 'openSheet' || b.dataset.open !== undefined) { renderShows(); $('#sheet').showModal(); }
   else if (b.id === 'sheetX') $('#sheet').close();
-  else if (b.classList.contains('show')) { dropLink(); st.show = shows[+b.dataset.i]; st.venue = st.show.venue; if ($('#sheet').open) $('#sheet').close(); render(); scrollTo({top:0, behavior:'smooth'}); }
+  else if (b.classList.contains('show')) { dropLink(); st.show = shows[+b.dataset.i]; st.venue = st.show.venue; st.altSid = ''; if ($('#sheet').open) $('#sheet').close(); render(); scrollTo({top:0, behavior:'smooth'}); }
   else if (b.dataset.sayall !== undefined) { if (sp.on && sp.pane === b.dataset.sayall) stopSpeak(); else sayPane(b.dataset.sayall); }
   else if (b.dataset.rate !== undefined) { sp.rate = sp.rate < 1 ? 1 : 0.8; try { localStorage.setItem('pyeonhanRate', sp.rate); } catch(e) {} refreshBars(); if (sp.on) sayPane(sp.pane); }
   else if (b.dataset.say !== undefined) { const stEl = b.closest('.step'), pane = b.closest('.pane').id.slice(5), idx = [...document.querySelectorAll(`#pane-${pane} .step`)].indexOf(stEl); sayList(pane, [{step:idx, text:speakable(stEl)}], 0); }
   else if (b.id === 'mapsay') { if (sp.on && sp.pane === 'map') { stopSpeak(); return; } const items = [...$('#mapdesc').querySelectorAll('li')].map(li => ({step:-1, text:speakable(li)})); const c = centerFor(venue()), tl = toiletsNear(venue()); items.unshift({step:-1, text:TR(`지도 안내예요. 파란 선은 계단을 피한 길이에요.`)}); items.push({step:-1, text:TR(`공연장에서 가장 가까운 화장실은 ${tl[0].p}, 약 ${r10(tl[0].m)}미터 거리예요. 휠체어 대여는 ${c.name}에서 해요.`)}); sayList('map', items, 0); }
-  else if (b.id === 'fromClear') { st.from = ''; save(); renderRoute(); drawMap(); renderAfter(); }
+  else if (b.id === 'fromClear') { st.from = ''; st.altSid = ''; save(); renderRoute(); drawMap(); renderAfter(); }
   else if (b.id === 'shareBtn') shareTrip();
   else if (b.dataset.follow !== undefined) { startFollow(); }
   else if (b.dataset.fnext !== undefined && follow) { follow.i = Math.min(follow.turns.length - 1, follow.i + 1); drawMap(); if (sp.on) sayFollow(); }
@@ -1013,6 +1013,7 @@ document.addEventListener('click', e => {
   else if (b.dataset.fsay !== undefined && follow) { follow.voice = true; sayFollow(); }
   else if (b.dataset.fexit !== undefined) { stopFollow(); }
   else if (b.dataset.rsort) { rsort = b.dataset.rsort; try { localStorage.setItem('pyeonhanRsort', rsort); } catch(e) {} renderReports(); const q = document.querySelector(`[data-rsort="${rsort}"]`); if (q) q.focus(); }
+  else if (b.dataset.alt) { if (b.getAttribute('aria-pressed') === 'true') return; st.altSid = b.dataset.alt; st.mapExit = null; renderRoute(); drawMap(); renderAfter(); const q = document.querySelector(`[data-alt="${b.dataset.alt}"]`); if (q) q.focus(); toast('이 경로로 바꿨어요. 가는 길·지도·막차가 모두 바뀌었어요.'); }
   else if (b.dataset.apps !== undefined) openApps();
   else if (b.id === 'appsX') $('#apps').close();
   else if (b.id === 'reportBtn') setPick(true);
@@ -1048,7 +1049,7 @@ document.addEventListener('submit', e => {
   const v = (window.I18N ? I18N.toKo($('#fromIn').value.trim()) : $('#fromIn').value.trim()).replace(/역$/, '').replace(/\s+/g, '');
   if (!v) return;
   if (!metroGraph().byName.has(v)) { $('#fromErr').textContent = `'${v}'역을 찾지 못했어요. 목록에서 골라 주세요. (우이신설선·GTX-A 역은 아직 없어요)`; return; }
-  st.from = v; save(); renderRoute(); drawMap(); renderAfter(); toast(`${v}역에서 출발하는 길로 바꿨어요.`);
+  st.from = v; st.altSid = ''; save(); renderRoute(); drawMap(); renderAfter(); toast(`${v}역에서 출발하는 길로 바꿨어요.`);
 });
 $('#reportForm').addEventListener('change', () => { $('#rpErr').textContent = ''; });
 loadReports();

@@ -6,6 +6,8 @@
 //    /lifts      휠체어리프트 (6시간)
 //    /safeplfm   안전발판 보유 현황 (6시간)
 //    /tt?st=역명&day=01|02|03  국토교통부(TAGO) 지하철 역별 시간표, 밤 9시~새벽 막차만 (12시간 재사용)
+//    /park       실시간 주차 대수 + 지난 8일 기록(10분마다, 크론 트리거 필요: */10 * * * *)
+//    /bus?op=pos&x=&y=&r=   정류소 찾기(서울시 정류소정보) · /bus?op=low&st=  저상버스 도착(서울시 버스도착정보)
 // 2) 현장 제보 (KV 바인딩 REPORTS 필요)
 //    GET  /reports            최근 30일 제보 목록
 //    POST /reports            {kind, lat, lng, text?} 제보 남기기 (IP당 하루 5건)
@@ -139,7 +141,42 @@ async function timetable(url, env) {
   }
 }
 
-export default {
+// 주차: 한국체육산업개발 실시간 주차현황(기관 공개 키)을 10분마다 KV에 쌓아 추세·지난주 비교에 써요
+const PARK_API = 'https://www.ksponco.or.kr/online/main/parkingorsApi.do?apiKey=PARKING21803504';
+let parkMemo = null;
+const PH = {...H, 'Cache-Control': 'max-age=60'};
+async function parkNow() { const j = await (await fetch(PARK_API)).json(); const v = +(j && j[0] && j[0].parking_sum); if (!(v >= 0)) throw new Error('bad'); return v; }
+async function parkCron(env) {
+  try { const v = await parkNow(), t = Date.now(), h = (await env.REPORTS.get('park:hist', 'json')) || []; h.push([t, v]); await env.REPORTS.put('park:hist', JSON.stringify(h.filter(x => t - x[0] < 8 * DAY))); } catch (e) {}
+}
+async function park(env) {
+  if (parkMemo && Date.now() - parkMemo.t < 60000) return new Response(parkMemo.b, {headers: PH});
+  let hist = []; try { hist = (await env.REPORTS.get('park:hist', 'json')) || []; } catch (e) {}
+  let now = null; try { now = [Date.now(), await parkNow()]; } catch (e) {}
+  const b = JSON.stringify({cap: 2200, label: '동2문·남2문·북2문', now, hist}); parkMemo = {t: Date.now(), b};
+  return new Response(b, {headers: PH});
+}
+// 저상버스: 서울시 버스도착정보(교통약자용)·정류소정보
+const busMemo = {};
+async function bus(url, env) {
+  const op = url.searchParams.get('op'), k = env.DATA_GO_KR_KEY, num = n => (url.searchParams.get(n) || '').replace(/[^0-9]/g, '').slice(0, 12);
+  let api, ttl;
+  if (op === 'low') { if (!num('st')) return json({error: 'st'}, 400); api = `http://ws.bus.go.kr/api/rest/arrive/getLowArrInfoByStId?resultType=json&serviceKey=${k}&stId=${num('st')}`; ttl = 30000; }
+  else if (op === 'pos') { const x = +url.searchParams.get('x'), y = +url.searchParams.get('y'), r = Math.min(800, +url.searchParams.get('r') || 400); if (!(x > 126 && x < 128 && y > 37 && y < 38)) return json({error: 'xy'}, 400); api = `http://ws.bus.go.kr/api/rest/stationinfo/getStationByPos?resultType=json&serviceKey=${k}&tmX=${x}&tmY=${y}&radius=${r}`; ttl = DAY; }
+  else if (op === 'route') { if (!num('st')) return json({error: 'st'}, 400); api = `http://ws.bus.go.kr/api/rest/stationinfo/getRouteByStation?resultType=json&serviceKey=${k}&arsId=${num('st')}`; ttl = DAY; }
+  else return json({error: 'op'}, 400);
+  const key = op + url.search, m = busMemo[key];
+  if (m && Date.now() - m.t < ttl) return new Response(m.b, {headers: PH});
+  try {
+    const t = await (await fetch(api)).text(); let j; try { j = JSON.parse(t); } catch (e) { throw new Error(t.slice(0, 200)); }
+    const hd = j.msgHeader || {}, ok = String(hd.headerCd) === '0' || String(hd.headerCd) === '4';
+    const b = JSON.stringify({ok, msg: hd.headerMsg || '', items: arr(j.msgBody && j.msgBody.itemList)});
+    if (ok) busMemo[key] = {t: Date.now(), b};
+    return new Response(b, {headers: PH});
+  } catch (e) { return json({error: 'upstream', detail: String(e.message || e).split(k || '@@').join('***').slice(0, 200)}, 502); }
+}
+
+const worker = {
   async fetch(req, env) {
     if (req.method === 'OPTIONS') return new Response(null, {status: 204, headers: H});
     const parts = new URL(req.url).pathname.split('/').filter(Boolean);
@@ -147,6 +184,8 @@ export default {
       try { return await reports(req, env, parts); } catch (e) { return json({error: 'server'}, 500); }
     }
     if (parts[0] === 'tt') return timetable(new URL(req.url), env);
+    if (parts[0] === 'park') return park(env);
+    if (parts[0] === 'bus') return bus(new URL(req.url), env);
     const name = parts[0] || '';
     const headers = {...H, 'Cache-Control': 'max-age=120'};
     const op = OPS[name];
@@ -178,3 +217,5 @@ export default {
     }
   }
 };
+worker.scheduled = (ev, env, ctx) => { ctx.waitUntil(parkCron(env)); };
+export default worker;

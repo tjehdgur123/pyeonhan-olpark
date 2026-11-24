@@ -90,7 +90,8 @@ try { sp.rate = +(localStorage.getItem('pyeonhanRate') || 1); } catch(e) {}
 try { sp.voice = localStorage.getItem('pyeonhanVoice') || ''; } catch(e) {}
 const NOVELTY = /Eddy|Flo|Grandma|Grandpa|Reed|Rocko|Sandy|Shelley|Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Wobble|Good News|Jester|Organ|Superstar|Trinoids|Whisper|Zarvox|Fred|Junior|Ralph|Kathy/i;
 const voiceScore = v => (/Natural|Neural|Online|Enhanced|Premium|향상|고품질|프리미엄/i.test(v.name + v.voiceURI) ? 8 : 0) + (/Google/i.test(v.name) ? 6 : 0) + (/SunHi/i.test(v.name) ? 1 : 0) + (/Yuna|유나|SunHi|InJoon|Hyunsu|Minjung|Heami|Samsung/i.test(v.name) ? 2 : 0) - (NOVELTY.test(v.name) ? 20 : 0) + (v.localService ? 0 : 1);
-const koVoices = () => SPEECH ? (speechSynthesis.getVoices() || []).filter(v => /^ko/i.test(v.lang) && !NOVELTY.test(v.name)).sort((a, b) => voiceScore(b) - voiceScore(a) || a.name.localeCompare(b.name)) : [];
+const LANG = () => (window.I18N ? I18N.lang : 'ko'), TR = t => (window.I18N ? I18N.tr(t) : t);
+const koVoices = () => SPEECH ? (speechSynthesis.getVoices() || []).filter(v => v.lang.toLowerCase().startsWith(LANG()) && !NOVELTY.test(v.name)).sort((a, b) => voiceScore(b) - voiceScore(a) || a.name.localeCompare(b.name)) : [];
 const koVoice = () => { const L = koVoices(); return L.find(v => v.voiceURI === sp.voice) || L[0]; };
 const voiceLabel = v => v.name.replace(/^Microsoft\s+/i, '').replace(/\s*[-–]\s*Korean.*$/i, '').replace(/\s*\((한국어|Korean).*$/i, '').replace(/Online \(Natural\)/i, '자연스러운 음성').replace(/Enhanced|Premium/i, '향상된 음질').trim() || v.name;
 function voicePicker() {
@@ -105,12 +106,14 @@ function speakable(el) {
   // 소리로 들을 필요 없는 것: 버튼·아이콘·펼침 표시·다른 역 막차 등 접힌 상세
   c.querySelectorAll('button, .say, .dot, svg, .speak, .ic, .chev, .maplinks, .diagram, details details, .lt h3, .lt > .meta').forEach(x => x.remove());
   // 표는 '○○행 막차 ○시 ○분'으로 줄여 읽기 (종점 행만)
-  c.querySelectorAll('table').forEach(t => { const r = [...t.querySelectorAll('tbody tr')].filter(x => !x.classList.contains('sub') && x.querySelector('th')); const s2 = document.createElement('p'); s2.textContent = r.map(x => x.querySelector('th').textContent.replace(/\s*\(종점\)/, '') + ' 막차, ' + x.querySelector('td').textContent).join('. '); t.replaceWith(s2); });
+  const KO = LANG() === 'ko';
+  c.querySelectorAll('table').forEach(t => { const r = [...t.querySelectorAll('tbody tr')].filter(x => !x.classList.contains('sub') && x.querySelector('th')); const s2 = document.createElement('p'); s2.textContent = r.map(x => x.querySelector('th').textContent.replace(/\s*[(（][^)）]*[)）]/, '') + (KO ? ' 막차, ' : ', ') + x.querySelector('td').textContent).join('. '); t.replaceWith(s2); });
   c.querySelectorAll('.tx small').forEach(x => { const k = x.textContent.trim(); if (k && c.textContent.split(k).length > 2) x.remove(); });
-  c.querySelectorAll('.exit').forEach(x => x.textContent = x.textContent + '번');
+  if (KO) c.querySelectorAll('.exit').forEach(x => x.textContent = x.textContent + '번');
   c.querySelectorAll('.tx b, .tx small, .chip, h3, dd, p, li, .note, summary').forEach(x => end(x, '. '));
   c.querySelectorAll('dt').forEach(x => end(x, ': '));
   let t = (c.innerText || c.textContent).replace(/번번/g, '번');
+  if (!KO) return t.replace(/[·•|→]/g, ', ').replace(/\s+/g, ' ').replace(/\s+([.,])/g, '$1').replace(/([.,。])(?:\s*[.,。])+/g, '$1').trim();
   t = t
     .replace(/(\d{4})-(\d{1,2})-(\d{1,2})/g, (m, y, mo, d) => `${+mo}월 ${+d}일`)
     .replace(/\b0(\d{1,2})-(\d{3,4})-(\d{4})(~\d)?/g, (m, a, b, c2) => ['0' + a, b, c2].map(g => g.split('').join(' ')).join(', '))
@@ -151,7 +154,7 @@ function sayList(pane, items, startIdx) {
     const el = document.querySelectorAll(`#pane-${pane} .step`)[it.step];
     if (el) el.scrollIntoView({block:'nearest', behavior:'smooth'});
     const u = new SpeechSynthesisUtterance(it.text);
-    u.lang = 'ko-KR'; u.rate = sp.rate; try { const v = koVoice(); if (v) u.voice = v; } catch(err) {}
+    u.lang = window.I18N ? I18N.speechLang() : 'ko-KR'; u.rate = sp.rate; try { const v = koVoice(); if (v) u.voice = v; } catch(err) {}
     u.onend = () => { if (sp.on) next(i + 1); };
     u.onerror = () => stopSpeak();
     speechSynthesis.speak(u);
@@ -162,10 +165,11 @@ function sayPane(pane) {
   const root = $('#pane-' + pane), steps = [...root.querySelectorAll('.step')];
   const v = venue(), s = curShow(), T = timesFor();
   let intro = pane === 'route'
-    ? `${s ? s.title + ', ' : ''}${v.name}까지 ${mode().label}로 가는 길을 안내할게요.${T.arrive ? ` ${hm(T.arrive)}까지 ${st.way === 'subway' ? '역에' : '주차장에'} 도착하면 좋아요.` : ''}`
+    ? `${s && LANG() === 'ko' ? s.title + ', ' : ''}${v.name}까지 ${mode().label}로 가는 길을 안내할게요.${T.arrive ? ` ${hm(T.arrive)}까지 ${st.way === 'subway' ? '역에' : '주차장에'} 도착하면 좋아요.` : ''}`
     : (T.end ? `공연은 ${hm(T.end)}쯤 끝나요. 혼잡을 피하려면 ${hm(T.leave)} 이후에 나서세요. 공연이 끝나고 20분에서 40분 사이가 가장 붐비고, 70분 뒤에 절반으로 줄어요.` : '공연이 끝나면 1시간 넘게 붐벼요.');
+  intro = TR(intro);
   const items = [{step:-1, text:speakable({cloneNode:() => { const d = document.createElement('div'); d.textContent = intro; return d; }})}];
-  steps.forEach((el, i) => items.push({step:i, text:`${i + 1}단계. ` + speakable(el)}));
+  steps.forEach((el, i) => items.push({step:i, text:TR(`${i + 1}단계.`) + ' ' + speakable(el)}));
   sayList(pane, items, 0);
 }
 if (SPEECH) { speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = () => { if (!document.activeElement || !document.activeElement.matches('[data-voice]')) refreshBars(); }; }
@@ -174,7 +178,7 @@ document.addEventListener('change', e => {
   sp.voice = s2.value; try { localStorage.setItem('pyeonhanVoice', sp.voice); } catch(err) {}
   document.querySelectorAll('[data-voice]').forEach(x => { if (x !== s2) x.value = sp.voice; });
   if (sp.on && sp.pane !== 'map') sayPane(sp.pane);
-  else { stopSpeak(); const u = new SpeechSynthesisUtterance('안녕하세요. 이 목소리로 안내할게요.'); u.lang = 'ko-KR'; u.rate = sp.rate; try { const v = koVoice(); if (v) u.voice = v; } catch(err) {} speechSynthesis.speak(u); }
+  else { stopSpeak(); const u = new SpeechSynthesisUtterance(TR('안녕하세요. 이 목소리로 안내할게요.')); u.lang = window.I18N ? I18N.speechLang() : 'ko-KR'; u.rate = sp.rate; try { const v = koVoice(); if (v) u.voice = v; } catch(err) {} speechSynthesis.speak(u); }
 });
 
 
@@ -257,7 +261,7 @@ function renderTrip() {
   const v = venue(), s = curShow();
   $('#trip').innerHTML = `
     <div class="kicker">${I.cal}${s ? `${fmtDate(s.at)} ${hm(s.at)} 시작` : '공연장만 선택함'}</div>
-    <h2>${esc(s ? s.title : v.name)}</h2>
+    <h2${s ? ' data-noi18n' : ''}>${esc(s ? s.title : v.name)}</h2>
     <div class="where">${I.pin} ${esc(v.name)}</div>
     <div class="seg" role="group" aria-label="이동 방법">${MODES.map(m => `<button data-mode="${m.id}" aria-pressed="${st.mode === m.id}">${m.icon}${m.label}</button>`).join('')}</div>
     <div class="seg" role="group" aria-label="교통수단">${WAYS.map(w => `<button data-way="${w.id}" aria-pressed="${st.way === w.id}">${w.icon}${w.label}</button>`).join('')}</div>
@@ -398,8 +402,8 @@ function mapLinks(x) {
     <p class="meta">저상버스 예약은 '서울동행맵' 앱</p></div>`;
 }
 function fromHTML(R, T) {
-  const opts = metroGraph().names.map(n => `<option value="${esc(n)}">`).join('');
-  const form = `<form class="fromform" id="fromForm"><label for="fromIn">집 근처 출발역</label><div><input id="fromIn" list="stList" autocomplete="off" placeholder="예: 노원" value="${esc(st.from || '')}"><button type="submit">확인</button>${st.from ? '<button type="button" id="fromClear">지우기</button>' : ''}</div><datalist id="stList">${opts}</datalist><p class="meta" id="fromErr" role="alert"></p></form>`;
+  const opts = metroGraph().names.map(n => `<option value="${esc(window.I18N ? I18N.nameOf(n) : n)}">`).join('');
+  const form = `<form class="fromform" id="fromForm"><label for="fromIn">집 근처 출발역</label><div><input id="fromIn" list="stList" autocomplete="off" placeholder="예: 노원" value="${esc(st.from ? (window.I18N ? I18N.nameOf(st.from) : st.from) : '')}"><button type="submit">확인</button>${st.from ? '<button type="button" id="fromClear">지우기</button>' : ''}</div><datalist id="stList">${opts}</datalist><p class="meta" id="fromErr" role="alert"></p></form>`;
   if (!st.from) return `<div class="fromcard">${form}<p class="meta">출발역을 고르면 출발역·환승역 엘리베이터 상태와 갈아탈 곳까지 함께 알려 드려요.</p>${mapLinks(mainExit(venue()))}</div>`;
   if (!R) return `<div class="fromcard">${form}<p class="meta">${esc(st.from)}역에서 가는 지하철 경로를 찾지 못했어요.</p></div>`;
   const r = R[0], board = T.arrive ? addMin(T.arrive, -Math.round(r.ride + r.xfer)) : null;
@@ -448,11 +452,12 @@ function diagram(nodes) {
     const last = i === n - 1;
     g += nd.exit ? `<rect x="${x(i) - 10}" y="14" width="20" height="20" rx="5" fill="#ffc20e" stroke="#111" stroke-width="1"/><text x="${x(i)}" y="29" text-anchor="middle" class="dg-x">${esc(nd.exit)}</text>`
       : `<circle cx="${x(i)}" cy="24" r="${last ? 8 : 7}" fill="${last ? '#0b4fa3' : 'var(--surface)'}" stroke="${last ? '#0b4fa3' : (nodes[i-1] || nd).seg?.color || '#666'}" stroke-width="3"/>`;
-    const nm = nd.name.length > 8 ? nd.name.slice(0, 7) + '…' : nd.name;
-    t += `<text x="${x(i)}" y="54" text-anchor="${i === 0 ? 'start' : last ? 'end' : 'middle'}" ${i === 0 ? `dx="-10"` : last ? `dx="10"` : ''} class="dg-n">${esc(nm)}</text>`;
+    const ko = LANG() === 'ko', full = ko ? nd.name : I18N.nameOf(nd.name), lim = ko ? 8 : 13, nm = full.length > lim ? full.slice(0, lim - 1) + '…' : full;
+    const stag = !ko && n > 3 && i % 2 === 1;
+    t += `<text x="${x(i)}" y="${stag ? 68 : 54}" text-anchor="${i === 0 ? 'start' : last ? 'end' : 'middle'}" ${i === 0 ? `dx="-10"` : last ? `dx="10"` : ''} class="dg-n">${esc(nm)}</text>`;
   });
   const label = nodes.map((nd, i) => nd.name + (i < n - 1 ? ` (${nd.seg.label})` : '')).join(' → ');
-  return `<svg class="diagram" viewBox="0 0 ${W} 62" role="img" aria-label="${esc(label)}">${g}${t}</svg>`;
+  return `<svg class="diagram" viewBox="0 0 ${W} ${LANG() !== 'ko' && n > 3 ? 76 : 62}" role="img" aria-label="${esc(label)}">${g}${t}</svg>`;
 }
 function routeHead(v, T, R) {
   const best = mainExit(v), walkMin = mins(best.p.m);
@@ -477,8 +482,8 @@ function routeHead(v, T, R) {
   return `<div class="rhead"><div class="big">${big}</div><div class="meta">${sub}</div>${diagram(nodes)}</div>`;
 }
 function fromBar(R) {
-  const opts = metroGraph().names.map(n => `<option value="${esc(n)}">`).join('');
-  const form = `<form class="fromform" id="fromForm"><label for="fromIn">집 근처 출발역</label><div><input id="fromIn" list="stList" autocomplete="off" placeholder="예: 노원" value="${esc(st.from || '')}"><button type="submit">확인</button>${st.from ? '<button type="button" id="fromClear">지우기</button>' : ''}</div><datalist id="stList">${opts}</datalist><p class="meta" id="fromErr" role="alert"></p></form>`;
+  const opts = metroGraph().names.map(n => `<option value="${esc(window.I18N ? I18N.nameOf(n) : n)}">`).join('');
+  const form = `<form class="fromform" id="fromForm"><label for="fromIn">집 근처 출발역</label><div><input id="fromIn" list="stList" autocomplete="off" placeholder="예: 노원" value="${esc(st.from ? (window.I18N ? I18N.nameOf(st.from) : st.from) : '')}"><button type="submit">확인</button>${st.from ? '<button type="button" id="fromClear">지우기</button>' : ''}</div><datalist id="stList">${opts}</datalist><p class="meta" id="fromErr" role="alert"></p></form>`;
   const links = mapLinks(mainExit(venue()));
   if (!st.from) return `<div class="fromcard">${form}${links}</div>`;
   return `<details class="fromcard fold"><summary><span>${I.train} 출발역 <b>${esc(st.from)}</b>${R ? '' : ' · 경로 없음'}</span><span class="meta">바꾸기 · 길찾기 앱</span></summary>${form}${links}</details>`;
@@ -770,7 +775,7 @@ function renderFollow() {
     <div class="fb"><button data-fprev aria-label="이전 안내" ${follow.i ? '' : 'disabled'}>이전</button>${SPEECH ? `<button data-fsay>${I.spk}<span>듣기</span></button>` : ''}<button data-fnext aria-label="다음 안내" ${follow.i < n - 1 ? '' : 'disabled'}>다음</button><button data-fexit>끝내기</button></div>
     ${follow.out ? '<p class="fnote">지금 위치가 공원 밖이에요. 안내를 직접 넘기며 보세요.</p>' : follow.noGps ? '<p class="fnote">위치를 쓸 수 없어 직접 넘기며 안내해요.</p>' : !follow.pos ? '<p class="fnote">내 위치를 찾는 중…</p>' : ''}`;
 }
-function sayFollow() { if (!SPEECH || !follow) return; const t = follow.turns[follow.i]; sayList('map', [{step:-1, text:speakable({cloneNode:() => { const d = document.createElement('div'); d.textContent = t.text; return d; }})}], 0); }
+function sayFollow() { if (!SPEECH || !follow) return; const t = follow.turns[follow.i]; sayList('map', [{step:-1, text:speakable({cloneNode:() => { const d = document.createElement('div'); d.textContent = TR(t.text); return d; }})}], 0); }
 
 function drawMap() {
   const v = venue() || {id:'', name:'', lat:0, lng:0}, svg = $('#map'), has = !!venue();
@@ -875,7 +880,7 @@ function renderStart() {
   $('#pane-route').innerHTML = ph('공연을 먼저 고르면 가는 길을 단계별로 안내해 드려요.');
   $('#pane-after').innerHTML = ph('공연을 고르면 끝나는 시각에 맞춰 붐비는 시간과 나서기 좋은 시각을 알려 드려요.');
 }
-const showBtn = (s, i) => `<button class="show" data-i="${i}" aria-pressed="${s === st.show}"><span class="d"><b>${s.at.getMonth()+1}/${s.at.getDate()}</b><span>${DOW[s.at.getDay()]} ${hm(s.at)}</span></span><span><span class="tt">${esc(s.title)}</span><br><span class="vv">${esc(D.venues.find(v => v.id === s.venue).name)}</span></span></button>`;
+const showBtn = (s, i) => `<button class="show" data-i="${i}" aria-pressed="${s === st.show}"><span class="d"><b>${s.at.getMonth()+1}/${s.at.getDate()}</b><span>${DOW[s.at.getDay()]} ${hm(s.at)}</span></span><span><span class="tt" data-noi18n>${esc(s.title)}</span><br><span class="vv">${esc(D.venues.find(v => v.id === s.venue).name)}</span></span></button>`;
 function renderShows() {
   $('#shows').innerHTML = shows.map((s, i) => showBtn(s, i)).join('') || '<p class="meta">예정된 공연 정보가 없어요.</p>';
   $('#evSrc').textContent = evSource === 'live' ? '올림픽공원 공식 일정에서 방금 불러온 공연이에요.' : evSource === 'saved' ? `공식 일정 ${fmtDate(evSavedAt)} ${hm(evSavedAt)}에 저장해 둔 공연이에요.` : `공연 일정: ${D.asof} 저장본`;
@@ -999,7 +1004,7 @@ document.addEventListener('click', e => {
   else if (b.dataset.sayall !== undefined) { if (sp.on && sp.pane === b.dataset.sayall) stopSpeak(); else sayPane(b.dataset.sayall); }
   else if (b.dataset.rate !== undefined) { sp.rate = sp.rate < 1 ? 1 : 0.8; try { localStorage.setItem('pyeonhanRate', sp.rate); } catch(e) {} refreshBars(); if (sp.on) sayPane(sp.pane); }
   else if (b.dataset.say !== undefined) { const stEl = b.closest('.step'), pane = b.closest('.pane').id.slice(5), idx = [...document.querySelectorAll(`#pane-${pane} .step`)].indexOf(stEl); sayList(pane, [{step:idx, text:speakable(stEl)}], 0); }
-  else if (b.id === 'mapsay') { if (sp.on && sp.pane === 'map') { stopSpeak(); return; } const items = [...$('#mapdesc').querySelectorAll('li')].map(li => ({step:-1, text:speakable(li)})); const c = centerFor(venue()), tl = toiletsNear(venue()); items.unshift({step:-1, text:`지도 안내예요. 파란 선은 계단을 피한 길이에요.`}); items.push({step:-1, text:`공연장에서 가장 가까운 화장실은 ${tl[0].p}, 약 ${r10(tl[0].m)}미터 거리예요. 휠체어 대여는 ${c.name}에서 해요.`}); sayList('map', items, 0); }
+  else if (b.id === 'mapsay') { if (sp.on && sp.pane === 'map') { stopSpeak(); return; } const items = [...$('#mapdesc').querySelectorAll('li')].map(li => ({step:-1, text:speakable(li)})); const c = centerFor(venue()), tl = toiletsNear(venue()); items.unshift({step:-1, text:TR(`지도 안내예요. 파란 선은 계단을 피한 길이에요.`)}); items.push({step:-1, text:TR(`공연장에서 가장 가까운 화장실은 ${tl[0].p}, 약 ${r10(tl[0].m)}미터 거리예요. 휠체어 대여는 ${c.name}에서 해요.`)}); sayList('map', items, 0); }
   else if (b.id === 'fromClear') { st.from = ''; save(); renderRoute(); drawMap(); renderAfter(); }
   else if (b.id === 'shareBtn') shareTrip();
   else if (b.dataset.follow !== undefined) { startFollow(); }
@@ -1040,13 +1045,15 @@ renderShows(); render(); setTab(location.hash.slice(1) || 'route'); st.started =
 $('#reportForm').addEventListener('submit', sendReport);
 document.addEventListener('submit', e => {
   if (e.target.id !== 'fromForm') return; e.preventDefault();
-  const v = $('#fromIn').value.trim().replace(/역$/, '').replace(/\s+/g, '');
+  const v = (window.I18N ? I18N.toKo($('#fromIn').value.trim()) : $('#fromIn').value.trim()).replace(/역$/, '').replace(/\s+/g, '');
   if (!v) return;
   if (!metroGraph().byName.has(v)) { $('#fromErr').textContent = `'${v}'역을 찾지 못했어요. 목록에서 골라 주세요. (우이신설선·GTX-A 역은 아직 없어요)`; return; }
   st.from = v; save(); renderRoute(); drawMap(); renderAfter(); toast(`${v}역에서 출발하는 길로 바꿨어요.`);
 });
 $('#reportForm').addEventListener('change', () => { $('#rpErr').textContent = ''; });
 loadReports();
+// 언어: 머리 오른쪽 '언어' 고르기. 한국어가 아니면 화면 글자를 사전으로 바꿔요
+if (window.I18N) { const L = $('#langSel'); L.value = I18N.lang; L.addEventListener('change', () => I18N.setLang(L.value)); I18N.start(); }
 (async () => { try { const j = await fetch(C.PARKING_API).then(r => r.json()); const p = +j[0].parking_sum; if (p >= 0) { live.parking = {p, at:hm(new Date()) + ' 실시간'}; if (st.way === 'car' && venue()) renderRoute(); } } catch(e) {} })();
 (async () => { try { if (!C.LIVE_API) throw 0; const j = await fetch(C.LIVE_API + '/elevators').then(r => r.json()); live.elev = j.items && j.items.length ? j : 'fail'; } catch(e) { live.elev = 'fail'; } if (venue()) renderRoute(); })();
 if (window.loadLiveEvents) loadLiveEvents(D.venues).then(ev => { if (ev.length) { evSource = 'live'; saveEvents(ev); setShows(ev); renderShows(); render(); } }).catch(() => {});

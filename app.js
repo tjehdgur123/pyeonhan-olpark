@@ -140,9 +140,11 @@ function stopSpeak() { if (!SPEECH) return; sp.on = false; sp.idx = -1; sp.queue
 function refreshBars() { document.querySelectorAll('.speak').forEach(b => { const p = b.querySelector('[data-sayall]').dataset.sayall; b.outerHTML = speakBar(p); }); }
 function markSpeaking() {
   document.querySelectorAll('.step.speaking').forEach(s => s.classList.remove('speaking'));
+  // 단계별 '듣기' 버튼: 읽는 중인 단계는 '그만'으로 바뀌어 다시 누르면 멈춰요
+  document.querySelectorAll('button.say[aria-pressed="true"]').forEach(b => { b.setAttribute('aria-pressed', 'false'); b.innerHTML = `${I.spk}<span>듣기</span>`; });
   if (!sp.on || sp.idx < 0) return;
   const s = document.querySelectorAll(`#pane-${sp.pane} .step`)[sp.idx];
-  if (s) s.classList.add('speaking');
+  if (s) { s.classList.add('speaking'); const b = s.querySelector('button.say'); if (b) { b.setAttribute('aria-pressed', 'true'); b.innerHTML = `${I.stop}<span>그만</span>`; } }
 }
 function sayList(pane, items, startIdx) {
   if (!SPEECH) return;
@@ -284,7 +286,7 @@ function timesFor() {
 }
 
 // ---------- 가는 길 ----------
-function stepHTML(dot, title, body, y) { return `<li class="step"><span class="dot ${y ? 'y' : ''}" aria-hidden="true">${dot}</span><div><div class="sh"><h3>${title}</h3>${SPEECH ? `<button class="say" data-say aria-label="이 단계 소리로 듣기">${I.spk}</button>` : ''}</div>${body}</div></li>`; }
+function stepHTML(dot, title, body, y) { return `<li class="step"><span class="dot ${y ? 'y' : ''}" aria-hidden="true">${dot}</span><div><div class="sh"><h3>${title}</h3>${SPEECH ? `<button class="say" data-say aria-pressed="false" aria-label="이 단계 소리로 듣기">${I.spk}</button>` : ''}</div>${body}</div></li>`; }
 function elevNote(S) {
   if (!live.elev) return `<p class="meta">엘리베이터 실시간 정보를 불러오는 중…</p>`;
   if (live.elev === 'fail') return `<div class="note info">${I.info}<span>엘리베이터 실시간 정보를 지금 불러오지 못했어요. 출발 전 역에 전화로 확인하세요.</span></div>`;
@@ -1101,7 +1103,7 @@ document.addEventListener('click', e => {
   else if (b.classList.contains('show')) { dropLink(); st.show = shows[+b.dataset.i]; st.venue = st.show.venue; st.altSid = ''; if ($('#sheet').open) $('#sheet').close(); render(); scrollTo({top:0, behavior:'smooth'}); }
   else if (b.dataset.sayall !== undefined) { if (sp.on && sp.pane === b.dataset.sayall) stopSpeak(); else sayPane(b.dataset.sayall); }
   else if (b.dataset.rate !== undefined) { sp.rate = sp.rate < 1 ? 1 : 0.8; try { localStorage.setItem('pyeonhanRate', sp.rate); } catch(e) {} refreshBars(); if (sp.on) sayPane(sp.pane); }
-  else if (b.dataset.say !== undefined) { const stEl = b.closest('.step'), pane = b.closest('.pane').id.slice(5), idx = [...document.querySelectorAll(`#pane-${pane} .step`)].indexOf(stEl); sayList(pane, [{step:idx, text:speakable(stEl)}], 0); }
+  else if (b.dataset.say !== undefined) { const stEl = b.closest('.step'), pane = b.closest('.pane').id.slice(5), idx = [...document.querySelectorAll(`#pane-${pane} .step`)].indexOf(stEl); if (sp.on && sp.pane === pane && sp.idx === idx) stopSpeak(); else sayList(pane, [{step:idx, text:speakable(stEl)}], 0); }
   else if (b.id === 'mapsay') { if (sp.on && sp.pane === 'map') { stopSpeak(); return; } const items = [...$('#mapdesc').querySelectorAll('li')].map(li => ({step:-1, text:speakable(li)})); const c = centerFor(venue()), tl = toiletsNear(venue()); items.unshift({step:-1, text:TR(`지도 안내예요. 파란 선은 계단을 피한 길이에요.`)}); items.push({step:-1, text:TR(`공연장에서 가장 가까운 화장실은 ${tl[0].p}, 약 ${r10(tl[0].m)}미터 거리예요. 휠체어 대여는 ${c.name}에서 해요.`)}); sayList('map', items, 0); }
   else if (b.id === 'fromClear') { st.from = ''; st.altSid = ''; save(); renderRoute(); drawMap(); renderAfter(); }
   else if (b.id === 'shareBtn') shareTrip();

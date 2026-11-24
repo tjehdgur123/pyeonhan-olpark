@@ -75,7 +75,7 @@ svg.i{width:1.2em;height:1.2em;flex:none;vertical-align:-.22em}
 .kinds{border:0;padding:0;margin:8px 0;display:grid;gap:6px}.kinds legend{font-weight:700;margin-bottom:6px}.kinds label{display:flex;gap:10px;align-items:center;min-height:48px;padding:0 12px;border:1.5px solid var(--line);border-radius:12px;cursor:pointer}.kinds label:has(input:checked){border-color:var(--blue);background:var(--blueSoft)}.kinds input{width:20px;height:20px;accent-color:var(--blueBg)}
 .tx{display:grid;gap:6px;font-weight:700;margin-top:8px}.tx textarea{font:inherit;font-weight:400;padding:10px;border-radius:10px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink)}.err{color:#c92a2a;min-height:1.2em;margin:4px 0}
 .linkbtn{background:none;border:0;padding:0;color:var(--blue);font:inherit;font-weight:700;text-decoration:underline;cursor:pointer}
-.fromcard{border:1px solid var(--line);border-radius:12px;padding:12px;margin:0 0 12px;background:var(--blueSoft)}.fromcard p{margin:6px 0 0}.fromform label{font-weight:700;display:block;margin-bottom:6px}.fromform div{display:flex;gap:6px;flex-wrap:wrap}.fromform input{flex:1 1 160px;min-height:44px;font:inherit;padding:0 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink)}.fromform button{min-height:44px;padding:0 14px;border-radius:10px;border:0;background:var(--blueBg);color:#fff;font-weight:700;cursor:pointer}.fromform button#fromClear{background:var(--surface);color:var(--ink);border:1px solid var(--line)}.maplinks{margin-top:10px}.maplinks .ml-t{font-weight:700;margin:0 0 6px}.maplinks .ml-t .meta{display:block;font-weight:400}.maplinks div{display:flex;gap:6px;flex-wrap:wrap}.mlink{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border-radius:10px;font-weight:700;text-decoration:none;border:1px solid var(--line)}.mlink.k{background:#fee500;color:#191600;border-color:#fee500}.mlink.n{background:#027a3a;color:#fff;border-color:#027a3a}.mlink.g{background:var(--surface);color:var(--ink)}
+.fromcard{border:1px solid var(--line);border-radius:12px;padding:12px;margin:0 0 12px;background:var(--blueSoft)}.fromcard p{margin:6px 0 0}.fromform label{font-weight:700;display:block;margin-bottom:6px}.fromform div{display:flex;gap:6px;flex-wrap:wrap}.fromform input{flex:1 1 160px;min-height:44px;font:inherit;padding:0 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink)}.fromform button{min-height:44px;padding:0 14px;border-radius:10px;border:0;background:var(--blueBg);color:#fff;font-weight:700;cursor:pointer}.fromform button#fromClear{background:var(--surface);color:var(--ink);border:1px solid var(--line)}.maplinks{margin-top:10px}.appbtn{display:flex;align-items:center;gap:10px;width:100%;min-height:56px;padding:8px 12px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;text-align:left;font:inherit}.appbtn>svg:first-child{color:var(--blue);flex:none}.appbtn span{flex:1;min-width:0}.appbtn b{display:block}.appbtn small{display:block;color:var(--mute);font-size:0.8125rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.appbtn>svg:last-child{flex:none;transform:rotate(-90deg);color:var(--mute)}.applist{list-style:none;margin:8px 0 0;padding:0}.applist li{border-bottom:1px solid var(--line)}.applist li.meta{border:0;padding:10px 4px}.app{display:flex;align-items:center;gap:14px;min-height:60px;padding:6px 4px;color:var(--ink);text-decoration:none;font-weight:700;font-size:1.0625rem}.app>span:nth-child(2){flex:1}.app>svg{transform:rotate(-90deg);color:var(--mute)}.aic{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-weight:800;font-size:1.125rem}.aic.k{background:#fee500;color:#191600}.aic.n{background:#027a3a;color:#fff}.aic.g{background:#fff;color:#1a73e8;border:1px solid var(--line)}.maplinks .ml-t{font-weight:700;margin:0 0 6px}.maplinks .ml-t .meta{display:block;font-weight:400}.maplinks div{display:flex;gap:6px;flex-wrap:wrap}.mlink{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border-radius:10px;font-weight:700;text-decoration:none;border:1px solid var(--line)}.mlink.k{background:#fee500;color:#191600;border-color:#fee500}.mlink.n{background:#027a3a;color:#fff;border-color:#027a3a}.mlink.g{background:var(--surface);color:var(--ink)}
 .extlink{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border-radius:10px;background:#fee500;color:#191600;font-weight:700;text-decoration:none}
 
 .rhead{margin:4px 0 10px}.rhead .big{font-size:1.625rem;font-weight:700;line-height:1.2}.rhead .meta{margin-top:2px}
@@ -299,6 +299,11 @@ footer li{margin:4px 0}
  <p class="err" id="rpErr" role="alert"></p>
  <button type="submit" class="pick">보내기</button>
 </form></dialog>
+<dialog id="apps" aria-labelledby="appsTitle"><div class="sheet">
+ <header><h2 id="appsTitle">어떤 앱으로 열까요?</h2><button class="x" id="appsX" aria-label="닫기">×</button></header>
+ <p class="meta" id="appsTo"></p>
+ <ul class="applist" id="appsList"></ul>
+</div></dialog>
 <dialog id="sheet" aria-labelledby="sheetTitle"><div class="sheet">
  <header><h2 id="sheetTitle">어떤 공연에 가세요?</h2><button class="x" id="sheetX" aria-label="닫기">×</button></header>
  <p class="src" id="evSrc"></p>
@@ -307,9 +312,9 @@ footer li{margin:4px 0}
  <select id="venueSel" aria-label="공연장 선택"></select>
 </div></dialog>
 
-<script src="data.js?v=20261124a"></script>
-<script src="config.js?v=20261124a"></script>
-<script src="events.js?v=20261124a"></script>
-<script src="app.js?v=20261124a"></script>
+<script src="data.js?v=20261124b"></script>
+<script src="config.js?v=20261124b"></script>
+<script src="events.js?v=20261124b"></script>
+<script src="app.js?v=20261124b"></script>
 </body>
 </html>

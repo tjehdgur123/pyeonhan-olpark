@@ -376,6 +376,13 @@ function pickedRoute() {
 function mainExit(v) { const R = pickedRoute(); return R ? R[0].x : exitsFor(v)[0]; }
 // 길찾기 앱 연결: 출발지 = 저장한 출발역(없으면 현재 위치), 목적지 = 도착역 엘리베이터 출구
 const isMobile = window.__forceMobile || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+function openApps() {
+  const c = mapLinks.cur; if (!c) return;
+  $('#appsTo').textContent = `${c.from} → ${c.to}`;
+  $('#appsList').innerHTML = c.apps.map(a => `<li><a class="app" href="${a.href}"${a.blank ? ' target="_blank" rel="noopener"' : ''}><span class="aic ${a.k}" aria-hidden="true">${a.name[0]}</span><span>${a.name}</span>${I.chev}</a></li>`).join('')
+    + (isMobile ? '' : `<li class="meta">네이버 지도는 휴대폰에서만 열려요.</li>`);
+  $('#apps').showModal();
+}
 function mapLinks(x) {
   const dn = `${x.s.name} ${x.e.no}번 출구(엘리베이터)`, [dl, dg] = x.e.ll;
   const o = st.from && D.metro.co[st.from] ? {n:st.from.replace(/\(.*\)/, '') + '역', ll:D.metro.co[st.from]} : null;
@@ -383,11 +390,12 @@ function mapLinks(x) {
   const kakao = o ? `https://map.kakao.com/link/by/traffic/${E(o.n)},${o.ll[0]},${o.ll[1]}/${E(dn)},${dl},${dg}` : `https://map.kakao.com/link/to/${E(dn)},${dl},${dg}`;
   const naver = `nmap://route/public?${o ? `slat=${o.ll[0]}&slng=${o.ll[1]}&sname=${E(o.n)}&` : ''}dlat=${dl}&dlng=${dg}&dname=${E(dn)}&appname=${E(location.origin + location.pathname)}`;
   const google = `https://www.google.com/maps/dir/?api=1${o ? `&origin=${o.ll[0]},${o.ll[1]}` : ''}&destination=${dl},${dg}&travelmode=transit`;
-  return `<div class="maplinks"><p class="ml-t">길찾기 앱으로 열기 <span class="meta">${o ? esc(o.n) : '현재 위치'} → ${esc(dn)}</span></p><div>
-    <a class="mlink k" target="_blank" rel="noopener" href="${kakao}">카카오맵</a>
-    ${isMobile ? `<a class="mlink n" href="${naver}">네이버 지도</a>` : ''}
-    <a class="mlink g" target="_blank" rel="noopener" href="${google}">구글 지도</a></div>
-    <p class="meta">저상버스 예약은 '서울동행맵' 앱${isMobile ? '' : ' · 네이버 지도는 휴대폰에서'}</p></div>`;
+  mapLinks.cur = {from:o ? o.n : '현재 위치', to:dn, apps:[
+    {k:'k', name:'카카오맵', href:kakao, blank:true},
+    ...(isMobile ? [{k:'n', name:'네이버 지도', href:naver}] : []),
+    {k:'g', name:'구글 지도', href:google, blank:true}]};
+  return `<div class="maplinks"><button type="button" class="appbtn" data-apps>${I.map}<span><b>길찾기 앱으로 열기</b><small>${o ? esc(o.n) : '현재 위치'} → ${esc(dn)}</small></span>${I.chev}</button>
+    <p class="meta">저상버스 예약은 '서울동행맵' 앱</p></div>`;
 }
 function fromHTML(R, T) {
   const opts = metroGraph().names.map(n => `<option value="${esc(n)}">`).join('');
@@ -1000,6 +1008,8 @@ document.addEventListener('click', e => {
   else if (b.dataset.fsay !== undefined && follow) { follow.voice = true; sayFollow(); }
   else if (b.dataset.fexit !== undefined) { stopFollow(); }
   else if (b.dataset.rsort) { rsort = b.dataset.rsort; try { localStorage.setItem('pyeonhanRsort', rsort); } catch(e) {} renderReports(); const q = document.querySelector(`[data-rsort="${rsort}"]`); if (q) q.focus(); }
+  else if (b.dataset.apps !== undefined) openApps();
+  else if (b.id === 'appsX') $('#apps').close();
   else if (b.id === 'reportBtn') setPick(true);
   else if (b.id === 'pickCancel') setPick(false);
   else if (b.id === 'pickOk') openReport(llFromSvg(vb.x + vb.w / 2, vb.y + vb.h / 2));
@@ -1040,4 +1050,6 @@ loadReports();
 (async () => { try { const j = await fetch(C.PARKING_API).then(r => r.json()); const p = +j[0].parking_sum; if (p >= 0) { live.parking = {p, at:hm(new Date()) + ' 실시간'}; if (st.way === 'car' && venue()) renderRoute(); } } catch(e) {} })();
 (async () => { try { if (!C.LIVE_API) throw 0; const j = await fetch(C.LIVE_API + '/elevators').then(r => r.json()); live.elev = j.items && j.items.length ? j : 'fail'; } catch(e) { live.elev = 'fail'; } if (venue()) renderRoute(); })();
 if (window.loadLiveEvents) loadLiveEvents(D.venues).then(ev => { if (ev.length) { evSource = 'live'; saveEvents(ev); setShows(ev); renderShows(); render(); } }).catch(() => {});
+// 앱 고르기 창: 바깥을 누르거나 앱을 고르면 닫기
+$('#apps').addEventListener('click', e => { if (e.target === e.currentTarget || e.target.closest('a.app')) setTimeout(() => $('#apps').close(), 0); });
 }

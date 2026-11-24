@@ -658,7 +658,7 @@ function legTrains(ref, B, A, n, day) {
   const out = [];
   for (const [d, a, to] of [...lb.dirs.U, ...lb.dirs.D]) {
     const dep = ttMin(d), T = bare(to); if (dep == null || !goes(T)) continue;
-    const hit = atA.filter(x => x.to === T && x.t >= dep + n * 1.0 && x.t <= dep + n * 4 + 5).sort((p, q) => p.t - q.t)[0];
+    const hit = atA.filter(x => x.to === T && x.t >= dep + n * 1.5 && x.t <= dep + n * 4 + 5).sort((p, q) => p.t - q.t)[0];
     out.push({dep, arr:hit ? hit.t : dep + n * RIDE, est:!hit, to:T, B, A, ref});
   }
   return out.length ? out.sort((p, q) => p.dep - q.dep) : null;

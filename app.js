@@ -96,9 +96,9 @@ const koVoices = () => SPEECH ? (speechSynthesis.getVoices() || []).filter(v => 
 const koVoice = () => { const L = koVoices(); return L.find(v => v.voiceURI === sp.voice) || L[0]; };
 const voiceLabel = v => v.name.replace(/^Microsoft\s+/i, '').replace(/\s*[-–]\s*Korean.*$/i, '').replace(/\s*\((한국어|Korean).*$/i, '').replace(/Online \(Natural\)/i, '자연스러운 음성').replace(/Enhanced|Premium/i, '향상된 음질').trim() || v.name;
 function voicePicker() {
-  const L = koVoices(); if (L.length < 2) return '';
+  const L = koVoices(); if (!L.length) return '';
   const cur = koVoice();
-  return `<label class="voice"><span>목소리</span><select data-voice>${L.map((v, i) => `<option value="${esc(v.voiceURI)}" ${v === cur ? 'selected' : ''}>${esc(voiceLabel(v))}${i === 0 ? ' (추천)' : ''}</option>`).join('')}</select></label>`;
+  return `<label class="voice"><span>목소리</span><select data-voice>${L.map((v, i) => `<option value="${esc(v.voiceURI)}" ${v === cur ? 'selected' : ''}>${esc(voiceLabel(v))}${i === 0 && L.length > 1 ? ' (추천)' : ''}</option>`).join('')}</select></label><button class="vhelp" data-vhelp aria-expanded="${!!sp.help}">목소리 더 받기</button>${sp.help ? `<div class="vnote"><p><b>더 자연스러운 목소리를 받는 법</b></p><ul><li>아이폰: 설정 → 손쉬운 사용 → 읽기 및 말하기 → 음성 → 한국어 → '유나(향상된 음질)' 내려받기</li><li>안드로이드: 설정 → 접근성(또는 일반) → 텍스트 음성 변환 → 기본 엔진 'Google' → 음성 데이터 설치 → 한국어</li><li>PC: 크롬이나 엣지로 열면 'Google 한국의'나 '자연스러운 음성'을 고를 수 있어요.</li></ul><p class="meta">받은 뒤 이 페이지를 새로고침하면 목록에 나와요. 지금 이 기기에서 쓸 수 있는 목소리는 ${L.length}개예요.</p></div>` : ''}`;
 }
 // 24시간제를 말하기 좋게: 23:27 → 밤 11시 27분
 const sayHM = (h, m) => { h = +h; m = +m; const p = h < 5 ? (h ? '새벽' : '밤') : h < 12 ? '오전' : h === 12 ? '낮' : h < 18 ? '오후' : h < 20 ? '저녁' : '밤'; return `${p} ${h % 12 || 12}시${m ? ' ' + m + '분' : ''}`; };
@@ -1102,6 +1102,7 @@ document.addEventListener('click', e => {
   else if (b.id === 'sheetX') $('#sheet').close();
   else if (b.classList.contains('show')) { dropLink(); st.show = shows[+b.dataset.i]; st.venue = st.show.venue; st.altSid = ''; if ($('#sheet').open) $('#sheet').close(); render(); scrollTo({top:0, behavior:'smooth'}); }
   else if (b.dataset.sayall !== undefined) { if (sp.on && sp.pane === b.dataset.sayall) stopSpeak(); else sayPane(b.dataset.sayall); }
+  else if (b.dataset.vhelp !== undefined) { sp.help = !sp.help; refreshBars(); const q = document.querySelector('[data-vhelp]'); if (q) q.focus(); }
   else if (b.dataset.rate !== undefined) { sp.rate = sp.rate < 1 ? 1 : 0.8; try { localStorage.setItem('pyeonhanRate', sp.rate); } catch(e) {} refreshBars(); if (sp.on) sayPane(sp.pane); }
   else if (b.dataset.say !== undefined) { const stEl = b.closest('.step'), pane = b.closest('.pane').id.slice(5), idx = [...document.querySelectorAll(`#pane-${pane} .step`)].indexOf(stEl); if (sp.on && sp.pane === pane && sp.idx === idx) stopSpeak(); else sayList(pane, [{step:idx, text:speakable(stEl)}], 0); }
   else if (b.id === 'mapsay') { if (sp.on && sp.pane === 'map') { stopSpeak(); return; } const items = [...$('#mapdesc').querySelectorAll('li')].map(li => ({step:-1, text:speakable(li)})); const c = centerFor(venue()), tl = toiletsNear(venue()); items.unshift({step:-1, text:TR(`지도 안내예요. 파란 선은 계단을 피한 길이에요.`)}); items.push({step:-1, text:TR(`공연장에서 가장 가까운 화장실은 ${tl[0].p}, 약 ${r10(tl[0].m)}미터 거리예요. 휠체어 대여는 ${c.name}에서 해요.`)}); sayList('map', items, 0); }

@@ -571,4 +571,11 @@ D = [
 ("크게", "L", "大", "大"),
 ("아주 크게", "XL", "特大", "特大"),
 ("그만", "Stop", "停止", "停止"),
+("목소리 더 받기", "Get more voices", "声を追加", "获取更多声音"),
+("더 자연스러운 목소리를 받는 법", "How to get more natural voices", "より自然な声を入れる方法", "如何获取更自然的声音"),
+("아이폰: 설정 → 손쉬운 사용 → 읽기 및 말하기 → 음성 → 한국어 → '유나(향상된 음질)' 내려받기", "iPhone: Settings → Accessibility → Spoken Content → Voices → choose your language → download an 'Enhanced' voice", "iPhone：設定 → アクセシビリティ → 読み上げコンテンツ → 声 → 言語を選び「拡張」音声をダウンロード", "iPhone：设置 → 辅助功能 → 朗读内容 → 声音 → 选择语言 → 下载“增强”音质的声音"),
+("안드로이드: 설정 → 접근성(또는 일반) → 텍스트 음성 변환 → 기본 엔진 'Google' → 음성 데이터 설치 → 한국어", "Android: Settings → Accessibility (or General) → Text-to-speech → engine 'Google' → Install voice data → your language", "Android：設定 → ユーザー補助（または一般）→ テキスト読み上げ → エンジン「Google」→ 音声データをインストール → 言語", "Android：设置 → 无障碍（或通用）→ 文字转语音 → 引擎“Google” → 安装语音数据 → 选择语言"),
+("PC: 크롬이나 엣지로 열면 'Google 한국의'나 '자연스러운 음성'을 고를 수 있어요.", "PC: in Chrome or Edge you can pick Google or 'Natural' online voices.", "PC：ChromeやEdgeで開くと、Googleや「Natural」音声を選べます。", "电脑：用Chrome或Edge打开，可选择Google或“Natural”在线声音。"),
+("받은 뒤 이 페이지를 새로고침하면 목록에 나와요.", "Refresh this page after installing and it will appear in the list.", "入れた後にこのページを更新すると一覧に表示されます。", "安装后刷新本页即可在列表中看到。"),
+("지금 이 기기에서 쓸 수 있는 목소리는 {n}개예요.", "This device currently has {n} voice(s).", "この端末で使える声は現在{n}個です。", "此设备目前有{n}个可用声音。"),
 ]

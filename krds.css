@@ -1,0 +1,51 @@
+/* KRDS(정부 디지털 서비스 디자인 시스템) 느낌 시험 적용 — 이 파일만 빼면 원래 디자인으로 돌아갑니다.
+   글꼴: Pretendard GOV (SIL OFL 1.1, KS X 1001 서브셋). 정부 상징·명칭은 쓰지 않습니다. */
+@font-face{font-family:"Pretendard GOV";font-weight:400;font-display:swap;src:url(fonts/PretendardGOV-Regular.subset.woff2) format("woff2")}
+@font-face{font-family:"Pretendard GOV";font-weight:500;font-display:swap;src:url(fonts/PretendardGOV-Medium.subset.woff2) format("woff2")}
+@font-face{font-family:"Pretendard GOV";font-weight:700 800;font-display:swap;src:url(fonts/PretendardGOV-Bold.subset.woff2) format("woff2")}
+
+:root{
+--bg:light-dark(#F4F5F6,#131416);--surface:light-dark(#FFFFFF,#1E2124);--ink:light-dark(#131416,#F4F5F6);--mute:light-dark(#58616A,#B1B8BE);
+--line:light-dark(#CDD1D5,#464C53);--blue:light-dark(#0B50D0,#5B92F4);--blueBg:#256EF4;--blueSoft:light-dark(#ECF2FE,#03204A);
+--ok:light-dark(#1F7A47,#5fd38a);--okBg:light-dark(#E9F5EE,#12291b);
+--r:12px;--shadow:0 1px 2px rgb(19 20 22/.06),0 1px 1px rgb(19 20 22/.04);
+--focus:light-dark(#256EF4,#A3C2F8)}
+body{font-family:"Pretendard GOV","Pretendard",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",system-ui,sans-serif;letter-spacing:0}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.mapwrap:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+.skip{background:#256EF4;color:#fff;border-radius:6px}
+
+/* 상단: 흰 바탕 + 아래 1px 선 */
+.bar{background:var(--surface);color:var(--ink);border-bottom:1px solid var(--line)}
+.bar small{color:var(--mute)}
+.logo{background:#256EF4;border-radius:8px}.logo svg circle{fill:#fff}.logo svg path{stroke:#fff}
+.ghost,.langsel{border:1px solid var(--line);color:var(--ink);border-radius:6px}
+.langsel select{color:var(--ink)}
+.bar :focus-visible{outline-color:var(--focus)}
+
+/* 카드·패널 */
+.card{border:1px solid light-dark(#E6E8EA,#33363D);box-shadow:none}
+.tabs{border:1px solid light-dark(#E6E8EA,#33363D);box-shadow:none;border-radius:10px}
+.tabs button{border-radius:6px}
+.lt,.fromcard,.note,.altcard,.sayall,.vhelp,.vnote,.voice,.rate,.install,.show,#toast,.step.speaking>div{border-radius:8px}
+
+/* 버튼: 6~8px 모서리, 주 버튼 primary-50 */
+.pick{border-radius:8px;min-height:56px}
+.change{border-radius:8px;border:1px solid light-dark(#A3C2F8,#063A74)}
+.install button,.fromform button,.pickbar button,.mlink,.extlink,.follow .fb button,.zoom button,.sheet select{border-radius:6px}
+.appbtn,.kinds label{border-radius:8px;border-width:1px}
+.tx textarea,.fromform input{border-radius:6px;border-width:1px}
+.go{border-radius:6px}
+.seg button{border-width:1px}
+.kinds label:has(input:checked),.altcard[aria-pressed=true]{border:2px solid #256EF4}
+dialog{border-radius:12px 12px 0 0}
+@media (min-width:600px){dialog{border-radius:12px}}
+
+/* 표 머리줄 */
+.lt thead th{border-bottom:1px solid light-dark(#052B57,#98ACC5)}
+
+/* 알약 모양 줄이기: 버튼은 6px, 상태 뱃지는 4px (노선 표시는 실제 노선도처럼 둥글게 유지) */
+.seg button,.rsort button,.rb button,.srow .body .say,.layers button{border-radius:6px}
+.chip,.dtag,.pill{border-radius:4px}
+.meter,.meter>*{border-radius:2px}
+.bar small{word-break:keep-all}

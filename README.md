@@ -55,6 +55,7 @@
 ## 구조
 
 - 정적 웹사이트(HTML/CSS/JS, 빌드 없음) → GitHub Pages로 무료 운영
+- 화면: KRDS(정부 디지털 서비스 디자인 시스템)의 색·글꼴·간격·모서리 규칙을 `krds.css`에 적용. 글꼴은 Pretendard GOV(SIL OFL 1.1)를 `fonts/`에 함께 둡니다. 정부 상징·명칭은 쓰지 않습니다.
 - 주차·공연 정보: 한국체육산업개발 공개 API와 공식 페이지를 브라우저에서 직접 호출 (CORS 허용)
 - 엘리베이터 실시간: `worker/worker.js` (Cloudflare Worker)가 공공데이터포털 인증키를 숨긴 채 중계. 주소를 `config.js`의 `LIVE_API`에 넣으면 켜집니다. 연결 전에는 저장된 스냅샷을 보여 줍니다.
 

@@ -97,11 +97,16 @@ async function reports(req, env, parts) {
   if (parts.length === 3 && (parts[2] === 'ok' || parts[2] === 'flag')) {
     const list = await load(env), r = list.find(x => x.id === parts[1]);
     if (!r) return json({error: 'not found'}, 404);
-    r.voters = r.voters || [];
-    if (r.voters.includes(who) || r.by === who) return json({item: pub(r), same: true});
-    r.voters.push(who); r[parts[2]]++;
+    if (r.by === who) return json({item: pub(r), same: true, mine: null});
+    // 같은 버튼을 다시 누르면 취소, 다른 버튼을 누르면 바꾸기 (예전 voters 기록은 누른 쪽으로 간주)
+    const k = parts[2]; r.votes = r.votes || {};
+    const prev = r.votes[who] || ((r.voters || []).includes(who) ? k : null);
+    r.voters = (r.voters || []).filter(x => x !== who);
+    let mine;
+    if (prev === k) { delete r.votes[who]; r[k] = Math.max(0, r[k] - 1); mine = null; }
+    else { if (prev) r[prev] = Math.max(0, r[prev] - 1); r.votes[who] = k; r[k]++; mine = k; }
     await store(env, list);
-    return json({item: pub(r)});
+    return json({item: pub(r), mine});
   }
   return json({error: 'not found'}, 404);
 }

@@ -49,3 +49,4 @@ dialog{border-radius:12px 12px 0 0}
 .chip,.dtag,.pill{border-radius:4px}
 .meter,.meter>*{border-radius:2px}
 .bar small{word-break:keep-all}
+.rb button[aria-pressed=true]{border:2px solid #256EF4;background:var(--blueSoft);color:var(--blue);font-weight:700}

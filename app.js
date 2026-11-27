@@ -1057,8 +1057,8 @@ function renderReports() {
   const v = venue(), top = rsort === 'top';
   const L = [...live.reports].sort((a, b) => (doubted(a) - doubted(b)) || (top ? (score(b) - score(a)) || (b.at - a.at) : (b.at - a.at))).slice(0, 12);
   const sb = (k, t) => `<button data-rsort="${k}" aria-pressed="${rsort === k}">${t}</button>`;
-  box.innerHTML = `<h3>최근 30일 현장 제보 <small>${live.reports.length}건</small></h3>` + (live.reports.length ? `<div class="rsort" role="group" aria-label="제보 정렬">${sb('new', '최신순')}${sb('top', '추천순')}</div>` : '') + (L.length ? `<ul class="rlist">${L.map(r => `<li class="${doubted(r) ? 'doubt' : ''}"><span class="rk ${r.kind === 'good' ? 'g' : ''}">${esc(RK[r.kind])}</span>${doubted(r) ? ' <span class="dtag">확인이 엇갈려요</span>' : ''} <span class="meta">${ago(r.at)}${v ? ` · ${esc(v.name)}에서 약 ${r10(dist(r.ll, vll(v)))}m` : ''}</span>${r.text ? `<p>${esc(r.text)}</p>` : ''}<div class="rb"><button data-vote="ok" data-id="${r.id}"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v11H4V10h3zM7 10l4-7a2 2 0 0 1 3 2l-1 5h6a2 2 0 0 1 2 2.3l-1.4 7A2 2 0 0 1 17.6 21H7"/></svg> 저도 봤어요 <b>${r.ok || 0}</b><span class="sr">명</span></button><button data-vote="flag" data-id="${r.id}"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path transform="rotate(180 12 12)" d="M7 10v11H4V10h3zM7 10l4-7a2 2 0 0 1 3 2l-1 5h6a2 2 0 0 1 2 2.3l-1.4 7A2 2 0 0 1 17.6 21H7"/></svg> 지금은 아니에요 <b>${r.flag || 0}</b><span class="sr">명</span></button></div></li>`).join('')}</ul>` : '<p class="meta">아직 제보가 없어요. 다니다 불편한 곳이 있으면 알려 주세요.</p>')
-    + `<p class="meta">제보는 이용자가 남긴 정보라 사실과 다를 수 있어요. 추천순은 '저도 봤어요'가 많은 제보가 위에 나와요. '지금은 아니에요'가 더 많으면 어느 순서든 맨 아래로 내려가요. '지금은 아니에요'가 3명 이상이면서 더 많으면 숨겨지고, 모든 제보는 30일 뒤 사라져요.</p>`;
+  box.innerHTML = `<h3>최근 30일 현장 제보 <small>${live.reports.length}건</small></h3>` + (live.reports.length ? `<div class="rsort" role="group" aria-label="제보 정렬">${sb('new', '최신순')}${sb('top', '추천순')}</div>` : '') + (L.length ? `<ul class="rlist">${L.map(r => `<li class="${doubted(r) ? 'doubt' : ''}"><span class="rk ${r.kind === 'good' ? 'g' : ''}">${esc(RK[r.kind])}</span>${doubted(r) ? ' <span class="dtag">확인이 엇갈려요</span>' : ''} <span class="meta">${ago(r.at)}${v ? ` · ${esc(v.name)}에서 약 ${r10(dist(r.ll, vll(v)))}m` : ''}</span>${r.text ? `<p>${esc(r.text)}</p>` : ''}<div class="rb"><button data-vote="ok" data-id="${r.id}" aria-pressed="${myVote(r.id) === 'ok'}"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v11H4V10h3zM7 10l4-7a2 2 0 0 1 3 2l-1 5h6a2 2 0 0 1 2 2.3l-1.4 7A2 2 0 0 1 17.6 21H7"/></svg> 저도 봤어요 <b>${r.ok || 0}</b><span class="sr">명</span></button><button data-vote="flag" data-id="${r.id}" aria-pressed="${myVote(r.id) === 'flag'}"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path transform="rotate(180 12 12)" d="M7 10v11H4V10h3zM7 10l4-7a2 2 0 0 1 3 2l-1 5h6a2 2 0 0 1 2 2.3l-1.4 7A2 2 0 0 1 17.6 21H7"/></svg> 지금은 아니에요 <b>${r.flag || 0}</b><span class="sr">명</span></button></div></li>`).join('')}</ul>` : '<p class="meta">아직 제보가 없어요. 다니다 불편한 곳이 있으면 알려 주세요.</p>')
+    + `<p class="meta">제보는 이용자가 남긴 정보라 사실과 다를 수 있어요. 추천순은 '저도 봤어요'가 많은 제보가 위에 나와요. '지금은 아니에요'가 더 많으면 어느 순서든 맨 아래로 내려가요. '지금은 아니에요'가 3명 이상이면서 더 많으면 숨겨지고, 모든 제보는 30일 뒤 사라져요. 누른 버튼을 한 번 더 누르면 취소돼요.</p>`;
 }
 let pick = false;
 function setPick(on) {
@@ -1084,10 +1084,20 @@ async function sendReport(e) {
   } catch(err) { $('#rpErr').textContent = err.message || '보내지 못했어요.'; }
   finally { btn.disabled = false; }
 }
+// 내가 누른 추천·비추천(오늘 하루 기준, 서버도 하루 단위로 같은 사람을 알아봐요)
+const kstDay = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+function myVotes() { try { const o = JSON.parse(localStorage.getItem('pyeonhanVotes') || '{}'); return o.day === kstDay() ? o.v || {} : {}; } catch (e) { return {}; } }
+const myVote = id => myVotes()[id] || null;
+function setMyVote(id, k) { try { const v = myVotes(); if (k) v[id] = k; else delete v[id]; localStorage.setItem('pyeonhanVotes', JSON.stringify({day: kstDay(), v})); } catch (e) {} }
 async function vote(id, kind, b) {
   b.disabled = true;
-  try { const r = await fetch(`${C.LIVE_API}/reports/${id}/${kind}`, {method:'POST'}); const j = await r.json(); toast(j.same ? '이미 반영했어요.' : kind === 'ok' ? '확인해 주셔서 고마워요.' : '알려 주셔서 고마워요.'); loadReports(); }
-  catch(e) { toast('보내지 못했어요.'); b.disabled = false; }
+  try {
+    const r = await fetch(`${C.LIVE_API}/reports/${id}/${kind}`, {method:'POST'}); const j = await r.json();
+    if (!r.ok) throw new Error(j.error);
+    if (j.same) toast('mine' in j ? '내가 올린 제보에는 누를 수 없어요.' : '이미 반영했어요.');
+    else { setMyVote(id, j.mine); toast(j.mine == null ? '취소했어요.' : kind === 'ok' ? '확인해 주셔서 고마워요.' : '알려 주셔서 고마워요.'); }
+    loadReports();
+  } catch(e) { toast('보내지 못했어요.'); b.disabled = false; }
 }
 
 // 이벤트

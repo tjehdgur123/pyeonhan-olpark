@@ -18,7 +18,7 @@
 /* VOICE: 공공 길안내 앱. 차분하고 또렷하게, 꾸밈보다 읽힘.
    IDEA: 지하철 교통약자 안내 표지 + 길찾기 앱의 단계별 경로.
    PICTURE: 실측 공원 지도 위 계단 없는 경로, 노란 엘리베이터 출구 번호.
-   COLOUR and TYPE: 안내판 파랑 #0b4fa3, 접근성 노랑 #ffc20e, 흰 바탕 / IBM Plex Sans KR.
+   COLOUR and TYPE: KRDS(정부 디지털 서비스 디자인 시스템) 토큰 — krds.css 참고 / Pretendard GOV.
    LAYOUT: 모바일은 여정 카드 → 탭(가는 길·지도·공연 후) + 하단 탭바, 넓은 화면은 왼쪽 안내·오른쪽 지도. */
 :root{color-scheme:light dark;
 --bg:light-dark(#f3f5f8,#0b121b);--surface:light-dark(#ffffff,#131d2a);--ink:light-dark(#101820,#eef2f7);--mute:light-dark(#5a6573,#a5b0be);
@@ -238,7 +238,7 @@ footer li{margin:4px 0}
 @media(max-width:959px){.tabs{display:none}.right{display:contents}}
 @media(max-width:420px){.times{grid-template-columns:repeat(2,minmax(0,1fr))}.times div:nth-child(3){border-left:0}.times div:nth-child(n+3){border-top:1px solid var(--line)}}
 </style>
-<link rel="stylesheet" href="krds.css?v=20261125c">
+<link rel="stylesheet" href="krds.css?v=20261127a">
 </head>
 <body>
 <a class="skip" href="#trip">본문 바로가기</a>
@@ -320,11 +320,11 @@ footer li{margin:4px 0}
  <select id="venueSel" aria-label="공연장 선택"></select>
 </div></dialog>
 
-<script src="data.js?v=20261125c"></script>
-<script src="config.js?v=20261125c"></script>
-<script src="events.js?v=20261125c"></script>
-<script src="i18n.js?v=20261125c"></script>
-<script src="i18n-dict.js?v=20261125c"></script>
-<script src="app.js?v=20261125c"></script>
+<script src="data.js?v=20261127a"></script>
+<script src="config.js?v=20261127a"></script>
+<script src="events.js?v=20261127a"></script>
+<script src="i18n.js?v=20261127a"></script>
+<script src="i18n-dict.js?v=20261127a"></script>
+<script src="app.js?v=20261127a"></script>
 </body>
 </html>

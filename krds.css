@@ -43,3 +43,9 @@ dialog{border-radius:12px 12px 0 0}
 
 /* 표 머리줄 */
 .lt thead th{border-bottom:1px solid light-dark(#052B57,#98ACC5)}
+
+/* 알약 모양 줄이기: 버튼은 6px, 상태 뱃지는 4px (노선 표시는 실제 노선도처럼 둥글게 유지) */
+.seg button,.rsort button,.rb button,.srow .body .say,.layers button{border-radius:6px}
+.chip,.dtag,.pill{border-radius:4px}
+.meter,.meter>*{border-radius:2px}
+.bar small{word-break:keep-all}
